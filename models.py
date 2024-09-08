@@ -1,6 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
-
+from datetime import datetime, timedelta
 # initialize SQLAlchemy
 db = SQLAlchemy()
 
@@ -39,7 +39,7 @@ class Book(db.Model):
     def update_availability(self):
         self.available = self.available_copies > 0
 
-    def serialize(self):
+    def book_serialize(self):
         return {
             'id': self.id,
             'title': self.title,
@@ -60,4 +60,22 @@ class Book(db.Model):
     #     return False
 
 
+class Borrowed(db.Model):
+    id = db.Column(db.Integer, primary_key=True) # create a unique identifier for each borrowed book
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) # create a relationship between the borrowed book and the user
+    book_id = db.Column(db.Integer, db.ForeignKey('book.id'), nullable=False) # create a relationship between the borrowed book and the book
+    borrow_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    return_date = db.Column(db.DateTime, nullable=True)
+    due_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow() + timedelta(days=14))
+    book = db.relationship('Book', back_populates='borrowed_books', lazy=True) # one-to-many relationship with Book model
+    user = db.relationship('User', back_populates='borrowed_books', lazy=True) # one-to-many relationship with User model
 
+    def borrowed_serialize(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'book_id': self.book_id,
+            'borrow_date': self.borrow_date,
+            'due_date': self.due_date,
+            'book_title': self.book.title, # add book title to the serialized data
+        }
