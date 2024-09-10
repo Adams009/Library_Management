@@ -1,7 +1,10 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
-from sqlalchemy import UniqueConstraint
+from email_validator import validate_email, EmailNotValidError
+import phonenumbers
+from phonenumbers import NumberParseException, is_valid_number, format_number, PhoneNumberFormat
+# from sqlalchemy import UniqueConstraint
 
 # initialize SQLAlchemy
 db = SQLAlchemy()
@@ -13,14 +16,14 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True) # create a unique identifier for each user
     username = db.Column(db.String(150), nullable=False, unique=True, index=True) # unique username for each user
     _save_hashed_password = db.Column(db.String(150), nullable=False) # hashed password for security
-    email = db.Column(db.String(150), nullable=False, unique=True, index=True) # unique email for each user
+    email_address = db.Column(db.String(150), nullable=False, unique=True, index=True) # unique email for each user
     first_name = db.Column(db.String(150), nullable=False) # first name of the user
     last_name = db.Column(db.String(150), nullable=False) # last name of the user
-    phone_number = db.Column(db.String(150), nullable=False) # phone number of the user
+    mobile_number = db.Column(db.String(150), nullable=False) # phone number of the user
     date_of_birth = db.Column(db.Date, nullable=False) # date of birth of user
     address = db.Column(db.String(255), nullable=False) # address of the user
     guarantor_fullname = db.Column(db.String(150), nullable=False) # fullname of the user's guarantor
-    guarantor_phone_number = db.Column(db.String(150), nullable=False) # phone number of the user's guarantor
+    guarantor_mobile_number = db.Column(db.String(150), nullable=False) # phone number of the user's guarantor
     guarantor_address = db.Column(db.String(255), nullable=False) # address of the user's guarantor
     guarantor_relationship = db.Column(db.String(150), nullable=False) # relationship between the user and the guarantor
 
@@ -38,6 +41,54 @@ class User(db.Model):
             raise ValueError("Password must be at least 8 characters long")
         self._save_hashed_password = generate_password_hash(password)
 
+    @property
+    def email(self):
+        """Return the user's email address"""
+        return self.email_address
+    @email.setter
+    def email(self, email):
+        """Set user's email with validation."""
+        try:
+            validate_email(email)
+            self.email_address = email
+        except EmailNotValidError as e:
+            raise ValueError(f"Invalid email address: {e}")
+        
+    @property
+    def phone_number(self):
+        """Returns the user's phone number"""
+        return self.mobile_number
+    @phone_number.setter
+    def phone_number(self, phone_number):
+        """Sets the user's phone number with validation."""
+        try:
+            number = phonenumbers.parse(phone_number, None)
+            if not is_valid_number(number):
+                raise ValueError("Invalid phone number format. Please enter the number with your country code")
+            formatted_number = format_number(number, PhoneNumberFormat.INTERNATIONAL)
+            if formatted_number == self.guarantor_mobile_number:
+                raise ValueError("User's phone number cannot be the same as the guarantor's phone number")
+            self.mobile_number = formatted_number
+        except NumberParseException as e:
+            raise ValueError(f"Invalid phone number. Please enter the number with your country code: {e}")
+        
+    @property
+    def guarantor_phone_number(self):
+        """Returns the guarantor's phone number"""
+        return self.guarantor_mobile_number
+    @guarantor_phone_number.setter
+    def guarantor_phone_number(self, phone_number):
+        """Sets the guarantor's phone number with validation."""
+        try:
+            number = phonenumbers.parse(phone_number, None)
+            if not is_valid_number(number):
+                raise ValueError("Invalid phone number format. Please enter the number with your country code")
+            formatted_number = format_number(number, PhoneNumberFormat.INTERNATIONAL)
+            if formatted_number == self.mobile_number:
+                raise ValueError("Guarantor's phone number cannot be the same as the user's phone number")
+            self.guarantor_mobile_number = formatted_number
+        except NumberParseException as e:
+            raise ValueError(f"Invalid phone number format. Please enter the number with your country code: {e}")
     def check_password(self, password):
         """Check if the provided password matches the hashed password."""
         return check_password_hash(self._save_hashed_password, password)
@@ -51,6 +102,23 @@ class User(db.Model):
         self.password = new_password
         db.session.commit()
     
+    def user_serialize(self):
+        """Serialize the user instance to a dictionary."""
+        return {
+            'a_message': "registration successful",
+            'id': self.id,
+            'username': self.username,
+            'email': self.email,
+            'first_name': self.first_name,
+            'last_name': self.last_name,
+            'phone_number': self.phone_number,
+            'date_of_birth': self.date_of_birth.isoformat(),  # Convert date to ISO format string
+            'address': self.address,
+            'guarantor_fullname': self.guarantor_fullname,
+            'guarantor_phone_number': self.guarantor_phone_number,
+            'guarantor_address': self.guarantor_address,
+            'guarantor_relationship': self.guarantor_relationship
+        }
     
 class Book(db.Model):
     id = db.Column(db.Integer, primary_key=True) # create a unique identifier for each book
@@ -153,5 +221,5 @@ class ReadingList(db.Model):
     book = db.relationship('Book', backref='reading_list', lazy=True)
 
     __table_args__ = (
-        UniqueConstraint('user_id', 'book_id', name='uix_user_book'),
+        db.UniqueConstraint('user_id', 'book_id', name='uix_user_book'),
     )
