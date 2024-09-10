@@ -45,3 +45,59 @@ def create_user():
         return jsonify(user.user_serialize()), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 400
+    
+@users_bp.route('/users/<int:id>', methods=['GET'])
+def get_user(id):
+    user = User.query.get(id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    results ={
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email_address,
+        }
+    return jsonify(results), 200
+
+@users_bp.route('/users', methods=['GET'])
+def get_all_users():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+
+    username_filter = request.args.get('username', None)
+    email_filter = request.args.get('email', None)
+
+    if page < 1 or per_page < 1:
+        return jsonify({'error': 'Page and per_page parameters must be positive integers'}), 400
+    
+    query = User.query
+
+    if username_filter:
+        query = query.filter(User.username.like(f'%{username_filter}%'))
+
+    if email_filter:
+        query = query.filter(User.email.like(f'%{email_filter}%'))
+    
+    total = query.count()
+
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    users = pagination.items
+    
+    results = [
+    {
+        "username": user.username,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "email": user.email_address,
+    } for user in users
+    ]
+
+    return jsonify({
+        "users": results,
+        "total_pages": pagination.pages,
+        "total_results": total,
+        "per_page": per_page,
+        "page": page,
+    }), 200
