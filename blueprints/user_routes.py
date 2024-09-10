@@ -101,3 +101,124 @@ def get_all_users():
         "per_page": per_page,
         "page": page,
     }), 200
+
+@users_bp.route('/users/<int:id>', methods=['PUT'])
+def update_user(id):
+    if request.content_type != 'application/json':
+        return jsonify({'error': 'Content-Type must be application/json'}), 400
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No JSON data received'}), 400
+    
+    # user_id = data.get('id')
+    # if not user_id:
+    #     return jsonify({'error': 'user_id is required'}), 400
+    
+    user = User.query.get(id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    # Update user fields based on JSON data
+    updated_fields = {}
+    
+    if data.get('username'):
+        new_username = data['username']
+        if new_username != user.username:
+            if User.query.filter_by(username=new_username).first():
+                return jsonify({'error': 'Username already exists'}), 400
+            user.username = new_username
+            updated_fields['username'] = new_username
+        else:
+            return jsonify({'error': 'Username is the same as the current username'})
+
+    if data.get('old_password') and data.get('new_password'):
+        try:
+            old_password = data.get('old_password')
+            new_password = data.get('new_password')
+            user.update_password(old_password, new_password)
+            updated_fields['password'] = data['new_password']
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+    
+    
+    if data.get('email'):
+        new_email = data['email']
+        if new_email != user.email_address:  
+            if User.query.filter_by(email=new_email).first():
+                return jsonify({'error': 'Email already exists'}), 400
+            try:    
+                user.email = new_email
+                updated_fields['email'] = new_email
+            except Exception as e:
+                return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Email is the same as the current email'})
+    
+    if data.get('first_name'):
+        if data.get('first_name') != user.first_name:
+            user.first_name = data['first_name']
+            updated_fields['first_name'] = data.get('first_name')
+        else:
+            return jsonify({'error': 'First name is the same as the current first name'})
+    
+    if data.get('last_name'):
+        if data.get('last_name') != user.last_name:
+            user.last_name = data['last_name']
+            updated_fields['last_name'] = data.get('last_name')  # Update last name if provided in JSON data
+        else:
+            return jsonify({'error': 'Last name is the same as the current last name'})
+    
+    if data.get('phone_number'):
+        if data.get('phone_number') != user.phone_number:
+            try:
+                user.phone_number = data['phone_number']
+                updated_fields['phone_number'] = data.get('phone_number')  # Update phone number if provided in JSON data
+            except Exception as e:
+                return jsonify({'error': str(e)}), 400
+        else:
+            return jsonify({'error': 'Phone number is the same as the current phone number'})
+
+    if data.get('address'):
+        if data.get('address') != user.address:
+            user.address = data['address']
+            updated_fields['address'] = data.get('address')  # Update address if provided in JSON data
+        else:
+            return jsonify({'error': 'Address is the same as the current address'})
+    
+    if data.get('guarantor_fullname'):
+        if data.get('guarantor_fullname') != user.guarantor_fullname:
+            user.guarantor_fullname = data['guarantor_fullname']
+            updated_fields['guarantor_fullname'] = data.get('guarantor_fullname')  # Update guarantor's fullname if provided in JSON data
+        else:
+            return jsonify({'error': "Guarantor's full name is the same as the current guarantor's full name"})
+    
+    if data.get('guarantor_phone_number'):
+        if data.get('guarantor_phone_number') != user.guarantor_phone_number:
+            try:
+                user.guarantor_phone_number = data['guarantor_phone_number']
+                updated_fields['guarantor_phone_number'] = data.get('guarantor_phone_number')
+            except Exception as e:
+                return jsonify({'error': str(e)}), 400
+        else:
+            return jsonify({'error': "Guarantor's phone number is the same as the current guarantor's phone number"})
+
+    if data.get('guarantor_address'):
+        if data.get('guarantor_address') != user.guarantor_address:
+            user.guarantor_address = data['guarantor_address']
+            updated_fields['guarantor_address'] = data.get('guarantor_address')  # Update guarantor's address if provided in JSON data
+        else:
+            return jsonify({'error': "Guarantor's address is the same as the current guarantor's address"})
+
+    if data.get('guarantor_relationship'):
+        if data.get('guarantor_relationship')!= user.guarantor_relationship:
+            user.guarantor_relationship = data['guarantor_relationship']
+            updated_fields['guarantor_relationship'] = data.get('guarantor_relationship')  # Update guarantor's relationship if provided in JSON data
+        else:
+            return jsonify({'error': "Guarantor's relationship is the same as the current guarantor's relationship"})
+
+    db.session.commit()
+    return jsonify({
+        "a_message": "Details updated successfully",
+        "user_id": user_id,
+        "updated_fields": updated_fields
+    })
