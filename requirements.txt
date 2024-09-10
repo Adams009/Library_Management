@@ -1,3 +1,7 @@
 flask
 SQLAlchemy
 flask-migrate
+Flask-SQLAlchemy
+python-dateutil
+email-validator
+phonenumbers
