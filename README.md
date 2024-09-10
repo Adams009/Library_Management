@@ -7,6 +7,7 @@ The **Book Library API** is a RESTful API designed for managing a book library s
 - **Check Availability:** Check the availability status of books.
 - **Borrow or Return Books:** Manage the borrowing and returning of books.
 - **Manage Reading Lists:** Create and manage personal reading lists.
+- **User Authentication:** Register and manage user accounts.
 
 ## Features
 
