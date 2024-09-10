@@ -109,7 +109,7 @@ def update_user(id):
     
     data = request.get_json()
     if not data:
-        return jsonify({'error': 'No JSON data received'}), 400
+        return jsonify({'error': 'No JSON data provided'}), 400
     
     # user_id = data.get('id')
     # if not user_id:
@@ -215,10 +215,21 @@ def update_user(id):
             updated_fields['guarantor_relationship'] = data.get('guarantor_relationship')  # Update guarantor's relationship if provided in JSON data
         else:
             return jsonify({'error': "Guarantor's relationship is the same as the current guarantor's relationship"})
+            
+    updated_fields["user_id"] = user.id
 
     db.session.commit()
     return jsonify({
         "a_message": "Details updated successfully",
-        "user_id": user_id,
         "updated_fields": updated_fields
     })
+
+@users_bp.route('/users/<int:id>', methods=['DELETE'])
+def delete_user(id):
+    user = User.query.get(id)
+    if user:
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({"message": "User deleted successfully"})
+    else:
+        return jsonify({"error": "User not found"}), 404
