@@ -8,6 +8,27 @@ users_bp = Blueprint('users', __name__)
 
 @users_bp.route('/register', methods=['POST'])
 def create_user():
+    """
+    Summary:
+        Registers a new user in the system.
+    
+    Required Datas: The request should be a JSON object with the following fields:
+        - username: A unique username for the user (string, required)
+        - password: The user's password (string, required)
+        - email: A unique email for the user (string, required)
+        - first_name: The user's first name (string, required)
+        - last_name: The user's last name (string, required)
+        - phone_number: The user's phone number (string, required)
+        - date_of_birth: The user's date of birth (string, required)
+        - address: The user's address (string, required)
+        - guarantor_fullname: The name of the user's guarantor (string, required)
+        - guarantor_phone_number: The phone number of the user's guarantor (string, required)
+        - guarantor_address: The address of the user's guarantor (string, required)
+        - guarantor_relationship: The relationship between the user and the guarantor (string, required)
+    
+    Returns:
+        JSON: A JSON object with the user's ID and details if the registration is successful, or an error message if not successful.
+    """
     if request.content_type != 'application/json':
         return jsonify({'error': 'Content-Type must be application/json'}), 400
     
@@ -48,6 +69,16 @@ def create_user():
     
 @users_bp.route('/users/<int:id>', methods=['GET'])
 def get_user(id):
+    """
+    Summary:
+        Get a user by id from the database and return the corresponding user object if it exists and not None otherwise return error message
+
+    Args:
+        id (int): The id of the user to get
+
+    Return:
+        JSON : A json object containing the user's details if the user exists, or an error message otherwise
+    """
     user = User.query.get(id)
     if not user:
         return jsonify({'error': 'User not found'}), 404
@@ -62,6 +93,19 @@ def get_user(id):
 
 @users_bp.route('/users', methods=['GET'])
 def get_all_users():
+    """
+    Summary:
+        Get all users in the database or get specific user by username or email address provided as parameter and return a list of users or specified user
+
+    Optional parameters:
+        - page (int): The page number to retrieve (default: 1)
+        - per_page (int): The number of users per page (default: 10)
+        - username (string): The username of the user to get (optional)
+        - email (string): The email address of the user to get (optional)
+    
+    Returns:
+        JSON : A json object containing a list of all users in the database
+    """
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
 
@@ -104,6 +148,29 @@ def get_all_users():
 
 @users_bp.route('/users/<int:id>', methods=['PUT'])
 def update_user(id):
+    """
+    Summary:
+        Update a user by id and return the updated user object if successful otherwise return an error message
+
+    Optional parameters:
+        - username (string): The new username of the user (optional)
+        - password (string): The new password of the user (optional)
+        - email (string): The new email address of the user (optional)
+        - first_name (string): The new first name of the user (optional)
+        - last_name (string): The new last name of the user (optional)
+        - phone_number (string): The new phone number of the user (optional)
+        - address (string): The new address of the user (optional)
+        - guarantor_fullname (string): The new name of the user's guarantor (optional)
+        - guarantor_phone_number (string): The new phone number of the user's guarantor (optional)
+        - guarantor_address (string): The new address of the user's guarantor (optional)
+        - guarantor_relationship (string): The new relationship between the user and the guarantor (optional)
+
+    Args:
+        id (int): The id of the user to update
+
+    Returns:
+        JSON: A json object containing the updated user object if successful otherwise an error message
+    """
     if request.content_type != 'application/json':
         return jsonify({'error': 'Content-Type must be application/json'}), 400
     
@@ -226,6 +293,16 @@ def update_user(id):
 
 @users_bp.route('/users/<int:id>', methods=['DELETE'])
 def delete_user(id):
+    """
+    Summary:
+        Delete a user from the database with the given id and return a JSON response indicating the success or failure of the operation.
+
+    Args:
+        id (int): The id of the user to be deleted.
+
+    Returns:
+        JSON: A JSON response indicating the success or failure of the operation.
+    """
     user = User.query.get(id)
     if user:
         db.session.delete(user)
