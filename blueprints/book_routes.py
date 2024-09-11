@@ -109,3 +109,59 @@ def get_book(book_id):
     if not book:
         return jsonify({'error': 'Book not found'}), 404
     return jsonify(book.book_serialize()), 200
+
+@books_bp.route('/books', methods=['POST'])
+def add_book():
+    """
+    Summary:
+        Add a new book to the database and return it in JSON format if successful otherwise returns an error
+            Description:
+        This endpoint adds a new book to the database. It expects a JSON request body containing the book details.
+        The book details include title, author, year, isbn, available, language, category, and publisher.
+        If any of the required fields are missing, it returns a 400 error with a message indicating the missing field.
+        If the book is successfully added, it returns a 201 status code with the book's details in JSON format.
+        If the book already exists in the database, it returns a 409 error with a message indicating that the book already exists.
+        If there is an error adding the book, it returns a 500 error with a generic error message.
+    
+    Returns:
+        JSON: The book's details in JSON format if it exists otherwise error message.
+    """
+    if request.content_type != 'application/json':
+        return jsonify({'error': 'Content-Type must be application/json'}), 400
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    title = data.get('title')
+    author = data.get('author')
+    year = data.get('year')
+    isbn = data.get('isbn')
+    available = data.get('available', None)
+    available_copies = data.get('available_copies')
+    total_copies = data.get('total_copies')
+    language = data.get('language')
+    category = data.get('category')
+    publisher = data.get('publisher')
+    cover_image_url = data.get('cover_image_url', None)
+
+    if not title or not author or not year or not isbn or not available_copies or not total_copies or not publisher or not language or not category:
+        return jsonify({'error': 'Missing required field'}), 400
+    
+    book = Book.query.filter_by(isbn=isbn).first()
+    if book:
+        return jsonify({'error': 'Book already exists'}), 409
+    
+    book = Book(title=title, author=author, year=year, isbn=isbn, available=available, available_copies=available_copies, total_copies=total_copies, language=language, category=category, publisher=publisher, cover_image_url=cover_image_url)
+    if book.total_copies > 0 and book.total_copies >= book.available_copies:
+        book.update_availability()
+    else:
+         return jsonify({'error': 'Total copies must be greater than or equal to available copies'}), 400
+
+    db.session.add(book)
+    db.session.commit()
+
+    message = book.book_serialize()
+    message['a_message'] = "Book added successfully"
+
+    return jsonify(message), 201
