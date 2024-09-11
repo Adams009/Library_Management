@@ -59,8 +59,8 @@ This API provides endpoints to manage user data, including creating, retrieving,
    - **Arguments:**
         `id: User ID (integer)`
    - **Returns:**
-        `Success: JSON object containing the user's details (HTTP 200 OK)`
-        `Error: JSON object with error message if user not found (HTTP 404 Not Found)`
+        ```Success: JSON object containing the user's details (HTTP 200 OK)
+        Error: JSON object with error message if user not found (HTTP 404 Not Found)
 
 3. ### Get All Users or Filtered Users
 
@@ -68,13 +68,13 @@ This API provides endpoints to manage user data, including creating, retrieving,
    - **Method:** GET
    - **Description:** Retrieves all users or users based on optional filters.
    - **Optional Parameters:**
-        `page: Page number for pagination (default: 1)`
-        `per_page: Number of users per page (default: 10)`
-        `username: Filter users by username (string, optional)`
-        `email: Filter users by email (string, optional)`
+        ```page: Page number for pagination (default: 1)
+        per_page: Number of users per page (default: 10)
+        username: Filter users by username (string, optional)
+        email: Filter users by email (string, optional)
    - **Returns:**
-        `Success: JSON object containing a list of users and pagination information (HTTP 200 OK)`
-        `Error: JSON object with error message if no users are found for the provided filters or general case (HTTP 404 Not Found)`
+        ```Success: JSON object containing a list of users and pagination information (HTTP 200 OK)
+        Error: JSON object with error message if no users are found for the provided filters or general case (HTTP 404 Not Found)
 
 4. ### Update a User by ID
 
@@ -84,10 +84,10 @@ This API provides endpoints to manage user data, including creating, retrieving,
    - **Arguments:**
         `id: User ID (integer)`
    - **Optional Parameters:**
-        `username, password, email, first_name, last_name, phone_number, address, guarantor_fullname, guarantor_phone_number, guarantor_address, guarantor_relationship: Fields to be updated (strings, optional)`
+        ```username, password, email, first_name, last_name, phone_number, address, guarantor_fullname, guarantor_phone_number, guarantor_address, guarantor_relationship: Fields to be updated (strings, optional)
    - **Returns:**
-        `Success: JSON object with updated user details and a success message (HTTP 200 OK)`
-        `Error: JSON object with error message if user not found or if validation fails (HTTP 400 Bad Request or HTTP 404 Not Found)`
+        ```Success: JSON object with updated user details and a success message (HTTP 200 OK)
+        Error: JSON object with error message if user not found or if validation fails (HTTP 400 Bad Request or HTTP 404 Not Found)
 
 5. ### Delete a User by ID
 
@@ -97,8 +97,8 @@ This API provides endpoints to manage user data, including creating, retrieving,
    - **Arguments:**
         `id: User ID (integer)`
    - **Returns:**
-        `Success: JSON object with a success message (HTTP 200 OK)`
-        `Error: JSON object with error message if user not found (HTTP 404 Not Found)`
+        ```Success: JSON object with a success message (HTTP 200 OK)
+        Error: JSON object with error message if user not found (HTTP 404 Not Found)
 
 ### Error Handling
 
