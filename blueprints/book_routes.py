@@ -155,10 +155,6 @@ def add_book():
     publisher = data.get('publisher')
     cover_image_url = data.get('cover_image_url', None)
     
-    book = Book.query.filter_by(isbn=isbn).first()
-    if book:
-        return jsonify({'error': 'Book already exists'}), 409
-    
     try:
         year = int(year)
         available_copies = int(available_copies)
