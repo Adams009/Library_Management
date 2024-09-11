@@ -1,8 +1,6 @@
 from flask import Blueprint,jsonify, request
 from models import *
 from dateutil import parser
-import phonenumbers
-from phonenumbers import NumberParseException, is_valid_number, format_number, PhoneNumberFormat
 
 users_bp = Blueprint('users', __name__)
 
@@ -11,12 +9,25 @@ def create_user():
     """
     Summary:
         Registers a new user in the system.
+            Description:
+        This endpoint adds a new user to the database. It expects a JSON request body containing the user details. 
+        Registers a new user in the system. The request should contain the user's details in JSON format.
+        if the request is not a JSON request, it returns an error message.
+        if no data is passed in the JSON request, it returns an error message.
+        if one of the required fields is missing, it returns an error message.
+        if the password is not strong enough, it returns an error message. The password must be at least 8 characters long.
+        if the email is not valid, it returns an error message.
+        if the date of birth is not a valid date, it returns an error message.
+        if the phone number is not valid, it returns an error message.
+        if the username or email already exists in the system, it returns an error message. The username and email must be unique.
+        if the user's phone number is the same with the guarantor's phone number, it returns an error message.
     
     Required Datas: The request should be a JSON object with the following fields:
         - username: A unique username for the user (string, required)
         - password: The user's password (string, required)
         - email: A unique email for the user (string, required)
-        - first_name: The user's first name (string, required)
+
+                - first_name: The user's first name (string, required)
         - last_name: The user's last name (string, required)
         - phone_number: The user's phone number (string, required)
         - date_of_birth: The user's date of birth (string, required)
@@ -72,6 +83,10 @@ def get_user(id):
     """
     Summary:
         Get a user by id from the database and return the corresponding user object if it exists and not None otherwise return error message
+            Description:
+        This endpoint will retrieve a specific user from the database by its ID and return it in JSON format
+        Retrieves a user by id from the database and returns the corresponding user object if it exists and not None otherwise returns an error message.
+        If the user does not exist, it returns an error message. If the user exists, it returns the user object with the specified id.
 
     Args:
         id (int): The id of the user to get
@@ -84,6 +99,8 @@ def get_user(id):
         return jsonify({'error': 'User not found'}), 404
     
     results ={
+            "user_id": user.id,
+            "phone_number": user.phone_number,
             "username": user.username,
             "first_name": user.first_name,
             "last_name": user.last_name,
@@ -95,7 +112,18 @@ def get_user(id):
 def get_all_users():
     """
     Summary:
-        Get all users in the database or get specific user by username or email address provided as parameter and return a list of users or specified user
+        Get all users in the database or get specific user by username or email address provided as parameter and return a list of users or specified user.
+            Description:
+        This endpoint will return all users in the database or get specific user by username or email address and return a JSON list of users or specified user
+        Retrieves all users in the database or a specific user by username or email address provided as parameter and returns a list of users or specified user.
+        it accepts page parameters to retrieve all users in a particular page
+        it accepts per page parameters to decide number of users to retrieve per page
+        If no parameters are provided, it retrieves all users.
+        If a username or email is provided, it retrieves the user(s) matching that criteria.
+        If a username or email is provided but no matching user is found, it returns an error message.
+        If a username or email is provided and multiple users are found, it returns a list of users matching that criteria.
+        If a username or email is provided and only one user is found, it returns the user object.
+
 
     Optional parameters:
         - page (int): The page number to retrieve (default: 1)
@@ -130,7 +158,7 @@ def get_all_users():
     
     if not (username_filter or email_filter):
         if not pagination.items:
-            return jsonify({'error': 'No users found'}), 404
+            return jsonify({'message' : 'No users found'}), 200
         
     total = query.count()
 
@@ -157,7 +185,32 @@ def get_all_users():
 def update_user(id):
     """
     Summary:
-        Update a user by id and return the updated user object if successful otherwise return an error message
+        Update a user by id and return the updated user object if successful otherwise return an error message.
+            Description:
+        This endpoint will update the user object by the given ID and given details about to be updated
+        Updates a user by id and returns the updated user object if successful, otherwise returns an error message.
+        If the user does not exist, it returns an error message.
+        If the user exists, it updates the user object with the provided data and returns the updated user object.
+        if the username is same with the provided new username, it returns an error message.
+        if the username exists in the database and it is not the same with the old username, it returns an error message
+        if the password is same with the provided new password, it returns an error message.
+        if the the old password is not provided, it returns an error message.
+        if the old password is provided but not correct, it returns an error message.
+        if the new password is provided but it is not strong enough, it returns an error message.
+        if the new password and old password are provided, it validates the old password before updating the password.
+        if the new email address is provided but it is not valid, it returns an error message.
+        if the new email address is provided and it is the same with the old email address, it returns an error message.
+        if the new email exists in the database and it is not the same with the old email and it is valid, it returns an error message.
+        if the new number is provided and it is not valid, it returns an error message.
+        if the new number is provided and it is the same with the old number, it returns an error message.
+        if the new first name is provided and it is the same with the old first name, it returns an error message.
+        if the new last name is provided and it is the same with the old last name, it returns an error message.
+        if the new address is provided and it is the same with the old address, it returns an error
+        if the new guarantor address is provided and it is the same with the old guarantor address, it returns an error message.
+        if the new guarantor relationship is provided and it is the same with the old guarantor relationship, it returns an error message.
+        if the new guarantor phone number is provided and it is the same with the old guarantor phone number, it returns an error message.
+        if the new guarantor phone number is provided and it is the same with the user's phone number, it returns an error message.
+        if the new guarantor phone number is provided and it is not valid, it returns an error message.
 
     Optional parameters:
         - username (string): The new username of the user (optional)
@@ -204,14 +257,17 @@ def update_user(id):
             user.username = new_username
             updated_fields['username'] = new_username
         else:
-            return jsonify({'error': 'Username is the same as the current username'})
+            return jsonify({'error': 'Username is the same as the current username'}), 400
 
     if data.get('old_password') and data.get('new_password'):
         try:
             old_password = data.get('old_password')
             new_password = data.get('new_password')
-            user.update_password(old_password, new_password)
-            updated_fields['password'] = data['new_password']
+            if old_password != new_password:
+                user.update_password(old_password, new_password)
+                updated_fields['password'] = data['new_password']
+            else:
+                return jsonify({'error': 'New password is the same as the current password'})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
     
@@ -226,45 +282,45 @@ def update_user(id):
                 updated_fields['email'] = new_email
             except Exception as e:
                 return jsonify({'error': str(e)}), 400
-        return jsonify({'error': 'Email is the same as the current email'})
+        return jsonify({'error': 'Email is the same as the current email'}), 400
     
     if data.get('first_name'):
         if data.get('first_name') != user.first_name:
             user.first_name = data['first_name']
             updated_fields['first_name'] = data.get('first_name')
         else:
-            return jsonify({'error': 'First name is the same as the current first name'})
+            return jsonify({'error': 'First name is the same as the current first name'}), 400
     
     if data.get('last_name'):
         if data.get('last_name') != user.last_name:
             user.last_name = data['last_name']
-            updated_fields['last_name'] = data.get('last_name')  # Update last name if provided in JSON data
+            updated_fields['last_name'] = data.get('last_name')
         else:
-            return jsonify({'error': 'Last name is the same as the current last name'})
+            return jsonify({'error': 'Last name is the same as the current last name'}), 400
     
     if data.get('phone_number'):
         if data.get('phone_number') != user.phone_number:
             try:
                 user.phone_number = data['phone_number']
-                updated_fields['phone_number'] = data.get('phone_number')  # Update phone number if provided in JSON data
+                updated_fields['phone_number'] = data.get('phone_number')
             except Exception as e:
                 return jsonify({'error': str(e)}), 400
         else:
-            return jsonify({'error': 'Phone number is the same as the current phone number'})
+            return jsonify({'error': 'Phone number is the same as the current phone number'}), 400
 
     if data.get('address'):
         if data.get('address') != user.address:
             user.address = data['address']
-            updated_fields['address'] = data.get('address')  # Update address if provided in JSON data
+            updated_fields['address'] = data.get('address')
         else:
-            return jsonify({'error': 'Address is the same as the current address'})
+            return jsonify({'error': 'Address is the same as the current address'}), 400
     
     if data.get('guarantor_fullname'):
         if data.get('guarantor_fullname') != user.guarantor_fullname:
             user.guarantor_fullname = data['guarantor_fullname']
-            updated_fields['guarantor_fullname'] = data.get('guarantor_fullname')  # Update guarantor's fullname if provided in JSON data
+            updated_fields['guarantor_fullname'] = data.get('guarantor_fullname')
         else:
-            return jsonify({'error': "Guarantor's full name is the same as the current guarantor's full name"})
+            return jsonify({'error': "Guarantor's full name is the same as the current guarantor's full name"}), 400
     
     if data.get('guarantor_phone_number'):
         if data.get('guarantor_phone_number') != user.guarantor_phone_number:
@@ -274,21 +330,24 @@ def update_user(id):
             except Exception as e:
                 return jsonify({'error': str(e)}), 400
         else:
-            return jsonify({'error': "Guarantor's phone number is the same as the current guarantor's phone number"})
+            return jsonify({'error': "Guarantor's phone number is the same as the current guarantor's phone number"}), 400
 
     if data.get('guarantor_address'):
         if data.get('guarantor_address') != user.guarantor_address:
             user.guarantor_address = data['guarantor_address']
-            updated_fields['guarantor_address'] = data.get('guarantor_address')  # Update guarantor's address if provided in JSON data
+            updated_fields['guarantor_address'] = data.get('guarantor_address')
         else:
-            return jsonify({'error': "Guarantor's address is the same as the current guarantor's address"})
+            return jsonify({'error': "Guarantor's address is the same as the current guarantor's address"}), 400
 
     if data.get('guarantor_relationship'):
         if data.get('guarantor_relationship')!= user.guarantor_relationship:
             user.guarantor_relationship = data['guarantor_relationship']
-            updated_fields['guarantor_relationship'] = data.get('guarantor_relationship')  # Update guarantor's relationship if provided in JSON data
+            updated_fields['guarantor_relationship'] = data.get('guarantor_relationship')
         else:
-            return jsonify({'error': "Guarantor's relationship is the same as the current guarantor's relationship"})
+            return jsonify({'error': "Guarantor's relationship is the same as the current guarantor's relationship"}), 400
+        
+    if updated_fields is None:
+        return jsonify({'error': 'No changes made to the user'}), 400
             
     updated_fields["user_id"] = user.id
 
@@ -296,14 +355,17 @@ def update_user(id):
     return jsonify({
         "a_message": "Details updated successfully",
         "updated_fields": updated_fields
-    })
+    }), 200
 
 @users_bp.route('/users/<int:id>', methods=['DELETE'])
 def delete_user(id):
     """
     Summary:
         Delete a user from the database with the given id and return a JSON response indicating the success or failure of the operation.
-
+            Description:
+        This endpoint deletes a user from the database with the given ID
+        The user will be removed from the database, along with all associated records and returns a successful response.
+        if user is not found, a 404 error will be returned.
     Args:
         id (int): The id of the user to be deleted.
 
@@ -314,6 +376,6 @@ def delete_user(id):
     if user:
         db.session.delete(user)
         db.session.commit()
-        return jsonify({"message": "User deleted successfully"})
+        return jsonify({"a_message": "User deleted successfully"}), 200
     else:
         return jsonify({"error": "User not found"}), 404
