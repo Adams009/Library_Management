@@ -257,3 +257,32 @@ def update_book(book_id):
         "a_message": "Details updated successfully",
         "updated_fields": updated_details
     }), 200
+
+@books_bp.route('/books/<int:book_id>', methods=['DELETE'])
+def delete_book(book_id):
+    """
+    Summary:
+        Delete a book from the database by its ID and return a confirmation message if successful otherwise returns an error
+            Description:
+        This endpoint deletes a book from the database by its ID.
+        If the book is not found, it returns a 404 error with a message indicating that the book was not found.
+        If the book is successfully deleted, it returns a 200 status code with a confirmation message.
+        If there is an error deleting the book, it returns a 500 error with a generic error message.
+    
+    Args:
+        book_id (int): The ID of the book to delete.
+
+    Returns:
+        JSON: A confirmation message if the book is deleted successfully otherwise error message.
+    """
+
+    book = Book.query.get(book_id)
+    if not book:
+        return jsonify({'error': 'Book not found'}), 404
+    
+    db.session.delete(book)
+    db.session.commit()
+    
+    return jsonify({
+        "a_message": "Book deleted successfully"
+    }), 200
