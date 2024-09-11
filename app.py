@@ -10,7 +10,10 @@ db.init_app(app) # create an SQLAlchemy instance for the database
 migrate = Migrate(app,db) # create a Migration instance
 
 from blueprints.user_routes import users_bp
+from blueprints.book_routes import books_bp
+
 app.register_blueprint(users_bp, url_prefix='/api') # register the blueprint for the users
+app.register_blueprint(books_bp, url_prefix='/api') # register the blueprint for the books
 
 if __name__ == '__main__':
     app.run(debug=True) # run the app in debug mode
