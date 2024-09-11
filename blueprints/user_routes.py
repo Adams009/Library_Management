@@ -118,14 +118,21 @@ def get_all_users():
     query = User.query
 
     if username_filter:
-        query = query.filter(User.username.like(f'%{username_filter}%'))
+        query = query.filter(User.username.ilike(f'%{username_filter}%'))
 
     if email_filter:
-        query = query.filter(User.email.like(f'%{email_filter}%'))
-    
-    total = query.count()
+        query = query.filter(User.email_address.ilike(f'%{email_filter}%'))
 
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    if (username_filter or email_filter) and not pagination.items:
+        return jsonify({'error': 'No user found matching the provided filter(s)'}), 404
+    
+    if not (username_filter or email_filter):
+        if not pagination.items:
+            return jsonify({'error': 'No users found'}), 404
+        
+    total = query.count()
 
     users = pagination.items
     
