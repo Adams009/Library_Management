@@ -286,3 +286,132 @@ def delete_book(book_id):
     return jsonify({
         "a_message": "Book deleted successfully"
     }), 200
+
+@books_bp.route('/books/<int:id>/availability', methods=['GET'])
+def check_availability(book_id):
+    """
+    Summary:
+        Check the availability of a book by its ID and return its availability status in JSON format if successful otherwise returns an error
+            Description:
+        This endpoint retrieves the availability status of a book from the database by its ID.
+        If the book is not found, it returns a 404 error with a message indicating that the book was not found.
+        If the book is successfully retrieved, it returns a 200 status code with the availability status in JSON format.
+        If there is an error retrieving the book, it returns a 500 error with a generic error message.
+
+    Args:
+        book_id (int): The ID of the book to check availability.
+
+    Returns:
+        JSON: The availability status of the book in JSON format if it exists otherwise error message.
+    """
+    book = Book.query.get(book_id)
+
+    if not book:
+        return jsonify({'error': 'Book not found.'}), 404
+    
+    availability_status = {
+        'id': book.id,
+        'title': book.title,
+        'available': book.available,
+        'author': book.author,
+        'year': book.year,
+        'isbn': book.isbn
+        }
+    
+    return jsonify(availability_status), 200
+
+@books_bp.route('/books/availability', methods=['GET'])
+def all_availability():
+    """
+    Summary:
+        Retrieve all books' availability status in JSON format and return them if successful otherwise returns an error
+            Description:
+        This endpoint retrieves all books' availability status or specific book according to the parameter provided from the database.
+        If there are no books, it returns an empty JSON object.
+        If the books are successfully retrieved, it returns a 200 status code with the availability status in JSON format.
+
+        Returns:
+        JSON: A JSON object containing all books' availability status if successful otherwise error message.
+    """
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    title = request.args.get('title', None)
+    author = request.args.get('author', None)
+    year = request.args.get('year', None)
+    isbn = request.args.get('isbn', None)
+    available = request.args.get('available', None)
+    language = request.args.get('language', None)
+    category = request.args.get('category', None)
+    publisher = request.args.get('publisher', None)
+
+    try:
+        page = int(page)
+        per_page = int(per_page)
+        if page < 1 or per_page < 1:
+            return jsonify({'error': 'Page and per_page parameters must be positive integers'}), 400
+    except ValueError:
+        return jsonify({'error': 'Page and per_page parameters must be integers'}), 400
+
+    query = Book.query
+
+    if title:
+        query = query.filter(Book.title.ilike(f'%{title}%'))
+
+    if author:
+        query = query.filter(Book.author.ilike(f'%{author}%'))
+
+    if year:
+        try:
+            query = query.filter(Book.year == int(year))
+        except ValueError:
+            return jsonify({'error': 'Year must be an integer'}), 400
+
+    if isbn:
+        query = query.filter(Book.isbn == isbn)
+
+    if available:
+        if available.lower() in ['true', 'false']:
+            query = query.filter(Book.available == (available.lower() == 'true'))
+        else:
+            return jsonify({'error': 'Available must be true or false'}), 400
+    
+    if language:
+        query = query.filter(Book.language.ilike(f'%{language}%'))
+
+    if category:
+        query = query.filter(Book.category.ilike(f'%{category}%'))
+
+    if publisher:
+        query = query.filter(Book.publisher.ilike(f'%{publisher}%'))
+
+    books = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    if (title or author or year or isbn or available or language or category or publisher) and not books.items:
+        return jsonify({'error': 'No books found matching the given criteria'}), 404
+    
+    if not (title or author or year or isbn or available or language or category or publisher):
+        if not books.items:
+            return jsonify({'message': 'No books found'}), 200
+        
+    total = query.count()
+    data = [
+        {
+            'id': book.id,
+            'title': book.title,
+            'available': book.available,
+            'author': book.author,
+            'year': book.year,
+            'isbn': book.isbn
+        } for book in books.items
+    ]
+    
+    response = {
+        'total_items': books.total,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': books.pages,
+        'books': data
+    }
+
+    return jsonify(response), 200
