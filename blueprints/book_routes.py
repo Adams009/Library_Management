@@ -87,3 +87,25 @@ def get_books():
     total = query.count()
     data = [book.book_serialize() for book in books.items]
     return jsonify({'total_result': total, 'page': page, 'per_page': per_page, 'books': data, 'total_pages': books.pages}), 200
+
+
+@books_bp.route('/books/<int:book_id>', methods=['GET'])
+def get_book(book_id):
+    """
+    Summary:
+        Get a specific book by ID and return it in JSON format if successful otherwise returns an error
+            Description:
+        This endpoint retrieves a specific book by its ID from the database and returns it in JSON format.
+        If the book is not found, it returns a 404 error with a message indicating that the book was not found.
+        If the book is found, it returns a 200 status code with the book's details in JSON format.
+
+    Args:
+        book_id (int): The ID of the book to retrieve.
+
+    Returns:
+        JSON: The book's details in JSON format if it exists otherwise error message.
+    """
+    book = Book.query.get(book_id)
+    if not book:
+        return jsonify({'error': 'Book not found'}), 404
+    return jsonify(book.book_serialize()), 200
