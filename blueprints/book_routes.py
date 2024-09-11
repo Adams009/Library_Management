@@ -165,3 +165,95 @@ def add_book():
     message['a_message'] = "Book added successfully"
 
     return jsonify(message), 201
+
+@books_bp.route('/books/<int:book_id>', methods=['PUT'])
+def update_book(book_id):
+    """
+    Summary:
+        Update an existing book in the database and return it in JSON format if successful otherwise returns an error
+            Description:
+        This endpoint updates an existing book in the database. It expects a JSON request body containing the book details to update.
+        The book details to update include title, author, year, isbn, available, language, category, and publisher.
+        If any of the required fields are missing, it returns a 400 error with a message indicating the missing field.
+        If the book is not found, it returns a 404 error with a message indicating that the book was not found.
+        If the book is successfully updated, it returns a 200 status code with the updated book's details in JSON format.
+        If there is an error updating the book, it returns a 500 error with a generic error message.
+    
+    Args:
+        book_id (int): The ID of the book to update.
+
+    Returns:
+        JSON: The updated book's details in JSON format if it exists otherwise error message.
+    """
+    if request.content_type != 'application/json':
+        return jsonify({'error': 'Content-Type must be application/json'}), 400
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    book = Book.query.get(book_id)
+    if not book:
+        return jsonify({'error': 'Book not found'}), 404
+    
+    updated_details = {}
+    
+    if data.get('title'):
+        book.title = data['title']
+        updated_details['title'] = book.title
+
+    if data.get('author'):
+        book.author = data['author']
+        updated_details['author'] = book.author
+
+    if data.get('year'):
+        book.year = data['year']
+        updated_details['year'] = book.year
+
+    if data.get('isbn'):
+        book.isbn = data['isbn']
+        updated_details['isbn'] = book.isbn
+
+    if data.get('available'):
+        book.available = data['available']
+        updated_details['available'] = book.available
+
+    if data.get('available_copies'):
+        book.available_copies = data['available_copies']
+        updated_details['available_copies'] = book.available_copies
+
+    if data.get('total_copies'):
+        book.total_copies = data['total_copies']
+        updated_details['total_copies'] = book.total_copies
+
+    if data.get('language'):
+        book.language = data['language']
+        updated_details['language'] = book.language
+
+    if data.get('category'):
+        book.category = data['category']
+        updated_details['category'] = book.category
+
+    if data.get('publisher'):
+        book.publisher = data['publisher']
+        updated_details['publisher'] = book.publisher
+    
+    if data.get('cover_image_url'):
+        book.cover_image_url = data['cover_image_url']
+        updated_details['cover_image_url'] = book.cover_image_url
+
+    if updated_details is None:
+        return jsonify({'error': 'No updated details provided'}), 400
+    
+    if book.total_copies > 0 and book.total_copies >= book.available_copies:
+        book.update_availability()
+    else:
+         return jsonify({'error': 'Total copies must be greater than or equal to available copies'}), 400
+    
+    updated_details['book_id'] = book.id
+    db.session.commit()
+    
+    return jsonify({
+        "a_message": "Details updated successfully",
+        "updated_fields": updated_details
+    }), 200
