@@ -40,8 +40,13 @@ def get_books():
     category = request.args.get('category', None)
     publisher = request.args.get('publisher', None)
 
-    if page < 1 or per_page < 1:
-        return jsonify({'error': 'Page and per_page parameters must be positive integers'}), 400
+    try:
+        page = int(page)
+        per_page = int(per_page)
+        if page < 1 or per_page < 1:
+            return jsonify({'error': 'Page and per_page parameters must be positive integers'}), 400
+    except ValueError:
+        return jsonify({'error': 'Page and per_page parameters must be integers'}), 400
 
     query = Book.query
 
@@ -61,8 +66,8 @@ def get_books():
         query = query.filter(Book.isbn == isbn)
 
     if available:
-        if available.lower() == ('true' or 'false'):
-            query = query.filter(Book.available == available.lower() == 'true')
+        if available.lower() in ['true', 'false']:
+            query = query.filter(Book.available == (available.lower() == 'true'))
         else:
             return jsonify({'error': 'Available must be true or false'}), 400
     
@@ -133,6 +138,11 @@ def add_book():
     if not data:
         return jsonify({'error': 'No data provided'}), 400
 
+    required_fields = ['title', 'author', 'year', 'isbn', 'available_copies', 'total_copies', 'publisher', 'language', 'category']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+        
     title = data.get('title')
     author = data.get('author')
     year = data.get('year')
@@ -144,19 +154,32 @@ def add_book():
     category = data.get('category')
     publisher = data.get('publisher')
     cover_image_url = data.get('cover_image_url', None)
-
-    if not title or not author or not year or not isbn or not available_copies or not total_copies or not publisher or not language or not category:
-        return jsonify({'error': 'Missing required field'}), 400
     
     book = Book.query.filter_by(isbn=isbn).first()
     if book:
         return jsonify({'error': 'Book already exists'}), 409
     
+    try:
+        year = int(year)
+        available_copies = int(available_copies)
+        total_copies = int(total_copies)
+    except ValueError:
+        return jsonify({'error': 'Year, available_copies, and total_copies must be integers'}), 400
+    
+    if available:
+        if available.lower() in ['true', 'false']:
+            available = available.lower() == 'true'
+        else:
+            return jsonify({'error': 'Available must be true or false'}), 400
+    
+    if total_copies < available_copies:
+        return jsonify({'error': 'Total copies must be greater than or equal to available copies'}), 400
+    
+    if Book.query.filter_by(isbn=data['isbn']).first():
+        return jsonify({'error': 'Book already exists'}), 409
+    
     book = Book(title=title, author=author, year=year, isbn=isbn, available=available, available_copies=available_copies, total_copies=total_copies, language=language, category=category, publisher=publisher, cover_image_url=cover_image_url)
-    if book.total_copies > 0 and book.total_copies >= book.available_copies:
-        book.update_availability()
-    else:
-         return jsonify({'error': 'Total copies must be greater than or equal to available copies'}), 400
+    book.update_availability()
 
     db.session.add(book)
     db.session.commit()
@@ -207,24 +230,40 @@ def update_book(book_id):
         updated_details['author'] = book.author
 
     if data.get('year'):
-        book.year = data['year']
-        updated_details['year'] = book.year
+        try:
+            year = int(data['year'])
+            book.year = year
+            updated_details['year'] = year
+        except ValueError:
+            return jsonify({'error': 'Year must be an integer'}), 400
 
     if data.get('isbn'):
         book.isbn = data['isbn']
         updated_details['isbn'] = book.isbn
 
     if data.get('available'):
-        book.available = data['available']
-        updated_details['available'] = book.available
+        availability = data['available']
+        if availability.lower() in ["true", "false"]:
+            book.available = availability.lower() == 'true'
+            updated_details['available'] = availability.lower() == 'true'
+        else:
+            return jsonify({'error': 'Available must be true or false'}), 400
 
     if data.get('available_copies'):
-        book.available_copies = data['available_copies']
-        updated_details['available_copies'] = book.available_copies
+        try:
+            available_copy = int(data['available_copies'])           
+            book.available_copies = available_copy
+            updated_details['available_copies'] = available_copy
+        except ValueError:
+            return jsonify({'error': 'Available copies must be an integer'}), 400
 
     if data.get('total_copies'):
-        book.total_copies = data['total_copies']
-        updated_details['total_copies'] = book.total_copies
+        try:
+            total_copy = int(data['total_copies'])
+            book.total_copies = total_copy
+            updated_details['total_copies'] = total_copy
+        except ValueError:
+            return jsonify({'error': 'Total copies must be an integer'}), 400
 
     if data.get('language'):
         book.language = data['language']
@@ -245,10 +284,11 @@ def update_book(book_id):
     if updated_details is None:
         return jsonify({'error': 'No updated details provided'}), 400
     
-    if book.total_copies > 0 and book.total_copies >= book.available_copies:
-        book.update_availability()
-    else:
-         return jsonify({'error': 'Total copies must be greater than or equal to available copies'}), 400
+    if 'available_copies' in updated_details or 'total_copies' in updated_details:
+        if book.total_copies < book.available_copies:
+            return jsonify({'error': 'Total copies must be greater than or equal to available copies'}), 400
+        else:
+            book.update_availability()
     
     updated_details['book_id'] = book.id
     db.session.commit()
