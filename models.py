@@ -129,9 +129,9 @@ class Book(db.Model):
     total_copies = db.Column(db.Integer, nullable=False) # total number of copies of the book
     available_copies = db.Column(db.Integer, nullable=False) # number of copies of the book available for borrowing
     available = db.Column(db.Boolean, default=True) # whether the book is available for borrowing or not
-    language = db.Column(db.String(50), nullable=True, index=True) # language of the book
-    category = db.Column(db.String(100), nullable=True, index=True) # category of the book
-    publisher = db.Column(db.String(150), nullable=True, index=True) # publisher of the book
+    language = db.Column(db.String(50), nullable=False, index=True) # language of the book
+    category = db.Column(db.String(100), nullable=False, index=True) # category of the book
+    publisher = db.Column(db.String(150), nullable=False, index=True) # publisher of the book
     cover_image_url = db.Column(db.String(255), nullable=True) # URL to the cover image of the book
 
     borrowed_books = db.relationship('Borrowed', back_populates='book', lazy=True) # one-to-many relationship with Borrowed model
@@ -151,7 +151,8 @@ class Book(db.Model):
             'language': self.language,
             'category': self.category,
             'publisher': self.publisher,
-            'available': self.available
+            'available': self.available,
+            'cover_image_url': self.cover_image_url
         }
     
     # def borrow_book(self, user_id):
