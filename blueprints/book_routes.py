@@ -2,6 +2,7 @@ from flask import Blueprint,jsonify, request
 from models import *
 from dateutil import parser
 from datetime import datetime, timedelta
+from werkzeug.exceptions import BadRequest
 
 books_bp = Blueprint('books', __name__)
 
@@ -134,7 +135,11 @@ def add_book():
     if request.content_type != 'application/json':
         return jsonify({'error': 'Content-Type must be application/json'}), 400
     
-    data = request.get_json()
+    try:
+        data = request.get_json()
+    except BadRequest as e:
+        return jsonify({'error': 'Invalid JSON', 'message': str(e)}), 400
+    
     if not data:
         return jsonify({'error': 'No data provided'}), 400
 
@@ -207,7 +212,11 @@ def update_book(book_id):
     if request.content_type != 'application/json':
         return jsonify({'error': 'Content-Type must be application/json'}), 400
     
-    data = request.get_json()
+    try:
+        data = request.get_json()
+    except BadRequest as e:
+        return jsonify({'error': 'Invalid JSON', 'message': str(e)}), 400
+    
     if not data:
         return jsonify({'error': 'No data provided'}), 400
     
@@ -218,64 +227,101 @@ def update_book(book_id):
     updated_details = {}
     
     if data.get('title'):
-        book.title = data['title']
-        updated_details['title'] = book.title
+        if data.get('title') != book.title:
+            book.title = data['title']
+            updated_details['title'] = book.title
+        else:
+            return jsonify({'error': 'New Book title is the same as the current book title'})
 
     if data.get('author'):
-        book.author = data['author']
-        updated_details['author'] = book.author
+        if data.get('author') != book.author:
+            book.author = data['author']
+            updated_details['author'] = book.author
+        else:
+            return jsonify({'error': 'New Book author is the same as the current book author'})
 
     if data.get('year'):
         try:
             year = int(data['year'])
-            book.year = year
-            updated_details['year'] = year
+            if year != book.year:
+                book.year = year
+                updated_details['year'] = year
+            else:
+                return jsonify({'error': 'New Book year is the same as the current book year'})
         except ValueError:
             return jsonify({'error': 'Year must be an integer'}), 400
 
     if data.get('isbn'):
-        book.isbn = data['isbn']
-        updated_details['isbn'] = book.isbn
+        if data.get('isbn') != book.isbn:
+            book.isbn = data['isbn']
+            updated_details['isbn'] = book.isbn
+        else:
+            return jsonify({'error': 'New Book ISBN is the same as the current book ISBN'})
 
     if data.get('available'):
         availability = data['available']
-        if availability.lower() in ["true", "false"]:
-            book.available = availability.lower() == 'true'
-            updated_details['available'] = availability.lower() == 'true'
+        
+        if availability != book.available:
+            if availability.lower() in ["true", "false"]:
+                book.available = availability.lower() == 'true'
+                updated_details['available'] = availability.lower() == 'true'
+            else:
+                return jsonify({'error': 'Available must be true or false'}), 400
         else:
-            return jsonify({'error': 'Available must be true or false'}), 400
+            return jsonify({'error': 'New Book availability is the same as the current book availability'})
 
     if data.get('available_copies'):
         try:
-            available_copy = int(data['available_copies'])           
-            book.available_copies = available_copy
-            updated_details['available_copies'] = available_copy
+            available_copy = int(data['available_copies'])
+            if available_copy != book.available_copies:
+                book.available_copies = available_copy
+                updated_details['available_copies'] = available_copy
+            else:
+                return jsonify({'error': 'New Book available copies is the same as the current book available copies'})
+
         except ValueError:
             return jsonify({'error': 'Available copies must be an integer'}), 400
 
     if data.get('total_copies'):
         try:
             total_copy = int(data['total_copies'])
-            book.total_copies = total_copy
-            updated_details['total_copies'] = total_copy
-        except ValueError:
+
+            if total_copy != book.total_copies:
+                book.total_copies = total_copy
+                updated_details['total_copies'] = total_copy
+            else:
+                return jsonify({'error': 'New Book total copies is the same as the current book total copies'})
+                                                 
+         except ValueError:
             return jsonify({'error': 'Total copies must be an integer'}), 400
 
     if data.get('language'):
-        book.language = data['language']
-        updated_details['language'] = book.language
+        if data.get('language') != book.language:
+            book.language = data['language']
+            updated_details['language'] = book.language
+        else:
+            return jsonify({'error': 'New Book language is the same as the current book language'})
 
     if data.get('category'):
-        book.category = data['category']
-        updated_details['category'] = book.category
+        if data.get('category') != book.category:
+            book.category = data['category']
+            updated_details['category'] = book.category
+        else:
+            return jsonify({'error': 'New Book category is the same as the current book category'})
 
     if data.get('publisher'):
-        book.publisher = data['publisher']
-        updated_details['publisher'] = book.publisher
+        if data.get('publisher') != book.publisher:
+            book.publisher = data['publisher']
+            updated_details['publisher'] = book.publisher
+        else:
+            return jsonify({'error': 'New Book publisher is the same as the current book publisher'})
     
     if data.get('cover_image_url'):
-        book.cover_image_url = data['cover_image_url']
-        updated_details['cover_image_url'] = book.cover_image_url
+        if data.get('cover_image_url') != book.cover_image_url:
+            book.cover_image_url = data['cover_image_url']
+            updated_details['cover_image_url'] = book.cover_image_url
+        else:
+            return jsonify({'error': 'cover_image_url is the same as current cover_image_url'})
 
     if updated_details is None:
         return jsonify({'error': 'No updated details provided'}), 400
@@ -323,7 +369,7 @@ def delete_book(book_id):
         "a_message": "Book deleted successfully"
     }), 200
 
-@books_bp.route('/books/<int:id>/availability', methods=['GET'])
+@books_bp.route('/books/<int:book_id>/availability', methods=['GET'])
 def check_availability(book_id):
     """
     Summary:

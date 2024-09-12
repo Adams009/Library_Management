@@ -1,6 +1,7 @@
 from flask import Blueprint,jsonify, request
 from models import *
 from dateutil import parser
+from werkzeug.exceptions import BadRequest
 
 users_bp = Blueprint('users', __name__)
 
@@ -43,12 +44,18 @@ def create_user():
     if request.content_type != 'application/json':
         return jsonify({'error': 'Content-Type must be application/json'}), 400
     
-    data = request.get_json()
+    try:
+        data = request.get_json()
+    except BadRequest as e:
+        return jsonify({'error': 'Invalid JSON', 'message': str(e)}), 400
+    
     if not data:
         return jsonify({'error': 'No JSON data received'}), 400
     
-    if not data.get('username') or not data.get('password') or not data.get('email') or not data.get('first_name') or not data.get('last_name') or not data.get('phone_number') or not data.get('date_of_birth') or not data.get('address') or not data.get('guarantor_fullname') or not data.get('guarantor_phone_number') or not data.get('guarantor_address') or not data.get('guarantor_relationship'):
-        return jsonify({'error': 'Missing required fields'}), 400
+    required_fields = ['username', 'password', 'email', 'first_name', 'last_name', 'phone_number', 'date_of_birth', 'address', 'guarantor_fullname', 'guarantor_phone_number', 'guarantor_address', 'guarantor_relationship']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({'error': f'Missing required field: {field}'}), 400
     
     if User.query.filter_by(username=data['username']).first():
         return jsonify({'error': 'Username already exists'}), 400
@@ -239,7 +246,11 @@ def update_user(id):
     if request.content_type != 'application/json':
         return jsonify({'error': 'Content-Type must be application/json'}), 400
     
-    data = request.get_json()
+    try:
+        data = request.get_json()
+    except BadRequest as e:
+        return jsonify({'error': 'Invalid JSON', 'message': str(e)}), 400
+    
     if not data:
         return jsonify({'error': 'No JSON data provided'}), 400
     
@@ -262,7 +273,7 @@ def update_user(id):
             user.username = new_username
             updated_fields['username'] = new_username
         else:
-            return jsonify({'error': 'Username is the same as the current username'}), 400
+            return jsonify({'error': 'New Username is the same as the current username'}), 400
 
     if data.get('old_password') and data.get('new_password'):
         try:
@@ -287,21 +298,21 @@ def update_user(id):
                 updated_fields['email'] = new_email
             except Exception as e:
                 return jsonify({'error': str(e)}), 400
-        return jsonify({'error': 'Email is the same as the current email'}), 400
+        return jsonify({'error': 'New Email is the same as the current email'}), 400
     
     if data.get('first_name'):
         if data.get('first_name') != user.first_name:
             user.first_name = data['first_name']
             updated_fields['first_name'] = data.get('first_name')
         else:
-            return jsonify({'error': 'First name is the same as the current first name'}), 400
+            return jsonify({'error': 'New First name is the same as the current first name'}), 400
     
     if data.get('last_name'):
         if data.get('last_name') != user.last_name:
             user.last_name = data['last_name']
             updated_fields['last_name'] = data.get('last_name')
         else:
-            return jsonify({'error': 'Last name is the same as the current last name'}), 400
+            return jsonify({'error': 'New Last name is the same as the current last name'}), 400
     
     if data.get('phone_number'):
         if data.get('phone_number') != user.phone_number:
@@ -311,21 +322,21 @@ def update_user(id):
             except Exception as e:
                 return jsonify({'error': str(e)}), 400
         else:
-            return jsonify({'error': 'Phone number is the same as the current phone number'}), 400
+            return jsonify({'error': 'New Phone number is the same as the current phone number'}), 400
 
     if data.get('address'):
         if data.get('address') != user.address:
             user.address = data['address']
             updated_fields['address'] = data.get('address')
         else:
-            return jsonify({'error': 'Address is the same as the current address'}), 400
+            return jsonify({'error': 'New Address is the same as the current address'}), 400
     
     if data.get('guarantor_fullname'):
         if data.get('guarantor_fullname') != user.guarantor_fullname:
             user.guarantor_fullname = data['guarantor_fullname']
             updated_fields['guarantor_fullname'] = data.get('guarantor_fullname')
         else:
-            return jsonify({'error': "Guarantor's full name is the same as the current guarantor's full name"}), 400
+            return jsonify({'error': "New Guarantor's full name is the same as the current guarantor's full name"}), 400
     
     if data.get('guarantor_phone_number'):
         if data.get('guarantor_phone_number') != user.guarantor_phone_number:
@@ -335,24 +346,24 @@ def update_user(id):
             except Exception as e:
                 return jsonify({'error': str(e)}), 400
         else:
-            return jsonify({'error': "Guarantor's phone number is the same as the current guarantor's phone number"}), 400
+            return jsonify({'error': "New Guarantor's phone number is the same as the current guarantor's phone number"}), 400
 
     if data.get('guarantor_address'):
         if data.get('guarantor_address') != user.guarantor_address:
             user.guarantor_address = data['guarantor_address']
             updated_fields['guarantor_address'] = data.get('guarantor_address')
         else:
-            return jsonify({'error': "Guarantor's address is the same as the current guarantor's address"}), 400
+            return jsonify({'error': "New Guarantor's address is the same as the current guarantor's address"}), 400
 
     if data.get('guarantor_relationship'):
         if data.get('guarantor_relationship')!= user.guarantor_relationship:
             user.guarantor_relationship = data['guarantor_relationship']
             updated_fields['guarantor_relationship'] = data.get('guarantor_relationship')
         else:
-            return jsonify({'error': "Guarantor's relationship is the same as the current guarantor's relationship"}), 400
+            return jsonify({'error': "New Guarantor's relationship is the same as the current guarantor's relationship"}), 400
         
     if updated_fields is None:
-        return jsonify({'error': 'No changes made to the user'}), 400
+        return jsonify({'error': 'No changes is provided to be made to the user'}), 400
             
     updated_fields["user_id"] = user.id
 
