@@ -147,8 +147,13 @@ def get_all_users():
     username_filter = request.args.get('username', None)
     email_filter = request.args.get('email', None)
 
-    if page < 1 or per_page < 1:
-        return jsonify({'error': 'Page and per_page parameters must be positive integers'}), 400
+    try:
+        page = int(page)
+        per_page = int(per_page)
+        if page < 1 or per_page < 1:
+            return jsonify({'error': 'Page and per_page parameters must be positive integers'}), 400
+    except ValueError:
+        return jsonify({'error': 'Page and per_page parameters must be integers'}), 400
     
     query = User.query
 
