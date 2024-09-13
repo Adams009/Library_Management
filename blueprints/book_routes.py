@@ -1,7 +1,5 @@
 from flask import Blueprint,jsonify, request
 from models import *
-from dateutil import parser
-from datetime import datetime, timedelta
 from werkzeug.exceptions import BadRequest
 
 books_bp = Blueprint('books', __name__)
@@ -10,10 +8,12 @@ books_bp = Blueprint('books', __name__)
 def get_books():
     """
     Summary:
-        Get all books in the database or a specific book by parameter provided and return a list of books or book in JSON format if successful otherwise returns an error
-            Description:
-        This endpoint retrieves a all books or a specific book by its given parameter from the database and returns it in JSON format.
-    Optional Parameters:
+         Retrieves a list of books from the database, with optional filtering and pagination. If no specific parameters are provided, returns all books. If filtering parameters are provided, returns books that match those criteria.
+
+    Description:
+        This endpoint fetches all books or a specific book based on the parameters provided. It returns a paginated list of books in JSON format. If no books are found or if there is an error in the provided parameters, an appropriate error message is returned.    
+    
+    Optional Query Parameters:
         page: The page number of the books to be returned
         per_page: The number of books per page to be returned
         title: The title of the book to be returned
@@ -25,6 +25,13 @@ def get_books():
         category: The category of the book to be returned
         publisher: The publisher of the book to be returned
         
+    HTTP response codes:
+        - 200: If successful, returns a paginated list of books in JSON format
+        - 400: If the request parameters are invalid, returns an error message
+
+    Errors:
+       If parameters are invalid
+    
     Returns:
         JSON: A JSON representation of the book or books in the database or a specific book in JSON format if successful otherwise returns an error
     """
@@ -84,7 +91,7 @@ def get_books():
     books = query.paginate(page=page, per_page=per_page, error_out=False)
 
     if (title or author or year or isbn or available or language or category or publisher) and not books.items:
-        return jsonify({'error': 'No books found matching the given criteria'}), 404
+        return jsonify({'message': 'No books found matching the given criteria'}), 200
     
     if not (title or author or year or isbn or available or language or category or publisher):
         if not books.items:
@@ -99,14 +106,20 @@ def get_books():
 def get_book(book_id):
     """
     Summary:
-        Get a specific book by ID and return it in JSON format if successful otherwise returns an error
-            Description:
-        This endpoint retrieves a specific book by its ID from the database and returns it in JSON format.
-        If the book is not found, it returns a 404 error with a message indicating that the book was not found.
-        If the book is found, it returns a 200 status code with the book's details in JSON format.
+       Retrieves a specific book by its ID from the database and returns its details in JSON format.
+
+     Description:
+        This endpoint fetches a book from the database using the provided book ID. If the book exists, it returns the book's details in JSON format with a 200 status code. If the book is not found, it returns a 404 error with an appropriate message.
 
     Args:
         book_id (int): The ID of the book to retrieve.
+
+    HTTP response codes:
+    - 200: If successful, returns the book's details in JSON format
+    - 404: If the book is not found, returns a 404 error with an appropriate message
+
+    Errors:
+        Book not found
 
     Returns:
         JSON: The book's details in JSON format if it exists otherwise error message.
@@ -120,15 +133,35 @@ def get_book(book_id):
 def add_book():
     """
     Summary:
-        Add a new book to the database and return it in JSON format if successful otherwise returns an error
-            Description:
-        This endpoint adds a new book to the database. It expects a JSON request body containing the book details.
-        The book details include title, author, year, isbn, available, language, category, and publisher.
-        If any of the required fields are missing, it returns a 400 error with a message indicating the missing field.
-        If the book is successfully added, it returns a 201 status code with the book's details in JSON format.
-        If the book already exists in the database, it returns a 409 error with a message indicating that the book already exists.
-        If there is an error adding the book, it returns a 500 error with a generic error message.
-    
+        Adds a new book to the database and returns the book's details in JSON format if successful. 
+
+    Description:
+        This endpoint allows the addition of a new book to the database. It expects a JSON request body containing the book's details, including title, author, year, ISBN, available copies, total copies, publisher, language, and category. Optionally, a cover image URL can also be provided. 
+
+        - If any required fields are missing or the data is invalid, it returns a 400 error with a specific message indicating the issue.
+        - If the book already exists in the database (based on ISBN), it returns a 409 error indicating the conflict.
+        - If the book is successfully added, it returns a 201 status code with the book's details in JSON format.
+        - In case of other errors, it returns a 500 error with a generic error message.
+
+    Rquest Body:
+        JSON Body:
+        - title (str): The title of the book.
+        - author (str): The author of the book.
+        - year (int): The publication year of the book.
+        - isbn (str): The ISBN of the book.
+        - available_copies (int): The number of available copies of the book.
+        - total_copies (int): The total number of copies of the book.
+        - language (str): The language of the book.
+        - category (str): The category of the book.
+        - publisher (str): The publisher of the book.
+        - cover_image_url (str, optional): The URL of the book's cover image.
+
+    HTTP response codes:
+        201 Created
+        400 Bad Request
+        409 Conflict
+        500 Internal Server Error
+
     Returns:
         JSON: The book's details in JSON format if it exists otherwise error message.
     """
@@ -182,30 +215,56 @@ def add_book():
     book = Book(title=title, author=author, year=year, isbn=isbn, available=available, available_copies=available_copies, total_copies=total_copies, language=language, category=category, publisher=publisher, cover_image_url=cover_image_url)
     book.update_availability()
 
-    db.session.add(book)
-    db.session.commit()
+    try:
+        db.session.add(book)
+        db.session.commit()
 
-    message = book.book_serialize()
-    message['a_message'] = "Book added successfully"
+        message = book.book_serialize()
+        message['a_message'] = "Book added successfully"
 
-    return jsonify(message), 201
+        return jsonify(message), 201
+    except Exception as e:
+        db.session.rollback()  # Rollback session on error
+        return jsonify({'error': 'An unexpected error occurred', 'message': str(e)}), 500
+
 
 @books_bp.route('/books/<int:book_id>', methods=['PUT'])
 def update_book(book_id):
     """
     Summary:
-        Update an existing book in the database and return it in JSON format if successful otherwise returns an error
-            Description:
-        This endpoint updates an existing book in the database. It expects a JSON request body containing the book details to update.
-        The book details to update include title, author, year, isbn, available, language, category, and publisher.
-        If any of the required fields are missing, it returns a 400 error with a message indicating the missing field.
-        If the book is not found, it returns a 404 error with a message indicating that the book was not found.
-        If the book is successfully updated, it returns a 200 status code with the updated book's details in JSON format.
-        If there is an error updating the book, it returns a 500 error with a generic error message.
+       Updates an existing book in the database and returns the updated book details in JSON format if successful.
+
+    Description:
+        This endpoint allows updating the details of an existing book in the database. It expects a JSON request body containing the details to be updated, including title, author, year, ISBN, available status, available copies, total copies, language, category, and publisher. Optionally, a cover image URL can also be updated.
+
+        - If any of the provided fields are the same as the current values, it returns a 409 error indicating no changes were made for those fields.
+        - If the book is not found by the provided ID, it returns a 404 error.
+        - If the updated available copies exceed the total copies, it returns a 400 error.
+        - On successful update, it returns a 200 status code with the updated book details.
+        - If there is an error during the update process, it returns a 500 error with a generic error message. 
     
+    Request Body (JSON):
+        - title (str, optional): The new title of the book.
+        - author (str, optional): The new author of the book.
+        - year (int, optional): The new publication year of the book.
+        - isbn (str, optional): The new ISBN of the book.
+        - available (bool, optional): The new availability status of the book (true/false).
+        - available_copies (int, optional): The new number of available copies of the book.
+        - total_copies (int, optional): The new total number of copies of the book.
+        - language (str, optional): The new language of the book.
+        - category (str, optional): The new category of the book.
+        - publisher (str, optional): The new publisher of the book.
+        - cover_image_url (str, optional): The new URL of the book's cover image.
+
     Args:
         book_id (int): The ID of the book to update.
 
+    HTTP response codes:
+        200 OK
+        400 Bad Request
+        409 Conflict
+        500 Internal Server Error
+    
     Returns:
         JSON: The updated book's details in JSON format if it exists otherwise error message.
     """
@@ -231,14 +290,14 @@ def update_book(book_id):
             book.title = data['title']
             updated_details['title'] = book.title
         else:
-            return jsonify({'error': 'New Book title is the same as the current book title'})
+            return jsonify({'error': 'New Book title is the same as the current book title'}), 409
 
     if data.get('author'):
         if data.get('author') != book.author:
             book.author = data['author']
             updated_details['author'] = book.author
         else:
-            return jsonify({'error': 'New Book author is the same as the current book author'})
+            return jsonify({'error': 'New Book author is the same as the current book author'}), 409
 
     if data.get('year'):
         try:
@@ -247,7 +306,7 @@ def update_book(book_id):
                 book.year = year
                 updated_details['year'] = year
             else:
-                return jsonify({'error': 'New Book year is the same as the current book year'})
+                return jsonify({'error': 'New Book year is the same as the current book year'}), 409
         except ValueError:
             return jsonify({'error': 'Year must be an integer'}), 400
 
@@ -256,7 +315,7 @@ def update_book(book_id):
             book.isbn = data['isbn']
             updated_details['isbn'] = book.isbn
         else:
-            return jsonify({'error': 'New Book ISBN is the same as the current book ISBN'})
+            return jsonify({'error': 'New Book ISBN is the same as the current book ISBN'}), 409
 
     if data.get('available'):
         availability = data['available']
@@ -268,7 +327,7 @@ def update_book(book_id):
             else:
                 return jsonify({'error': 'Available must be true or false'}), 400
         else:
-            return jsonify({'error': 'New Book availability is the same as the current book availability'})
+            return jsonify({'error': 'New Book availability is the same as the current book availability'}), 409
 
     if data.get('available_copies'):
         try:
@@ -277,7 +336,7 @@ def update_book(book_id):
                 book.available_copies = available_copy
                 updated_details['available_copies'] = available_copy
             else:
-                return jsonify({'error': 'New Book available copies is the same as the current book available copies'})
+                return jsonify({'error': 'New Book available copies is the same as the current book available copies'}), 409
 
         except ValueError:
             return jsonify({'error': 'Available copies must be an integer'}), 400
@@ -290,9 +349,9 @@ def update_book(book_id):
                 book.total_copies = total_copy
                 updated_details['total_copies'] = total_copy
             else:
-                return jsonify({'error': 'New Book total copies is the same as the current book total copies'})
+                return jsonify({'error': 'New Book total copies is the same as the current book total copies'}), 409
                                                  
-         except ValueError:
+        except ValueError:
             return jsonify({'error': 'Total copies must be an integer'}), 400
 
     if data.get('language'):
@@ -300,31 +359,31 @@ def update_book(book_id):
             book.language = data['language']
             updated_details['language'] = book.language
         else:
-            return jsonify({'error': 'New Book language is the same as the current book language'})
+            return jsonify({'error': 'New Book language is the same as the current book language'}), 409
 
     if data.get('category'):
         if data.get('category') != book.category:
             book.category = data['category']
             updated_details['category'] = book.category
         else:
-            return jsonify({'error': 'New Book category is the same as the current book category'})
+            return jsonify({'error': 'New Book category is the same as the current book category'}), 409
 
     if data.get('publisher'):
         if data.get('publisher') != book.publisher:
             book.publisher = data['publisher']
             updated_details['publisher'] = book.publisher
         else:
-            return jsonify({'error': 'New Book publisher is the same as the current book publisher'})
+            return jsonify({'error': 'New Book publisher is the same as the current book publisher'}), 409
     
     if data.get('cover_image_url'):
         if data.get('cover_image_url') != book.cover_image_url:
             book.cover_image_url = data['cover_image_url']
             updated_details['cover_image_url'] = book.cover_image_url
         else:
-            return jsonify({'error': 'cover_image_url is the same as current cover_image_url'})
+            return jsonify({'error': 'cover_image_url is the same as current cover_image_url'}), 409
 
     if updated_details is None:
-        return jsonify({'error': 'No updated details provided'}), 400
+        return jsonify({'mesaage': 'No changes made'}), 200
     
     if 'available_copies' in updated_details or 'total_copies' in updated_details:
         if book.total_copies < book.available_copies:
@@ -333,55 +392,80 @@ def update_book(book_id):
             book.update_availability()
     
     updated_details['book_id'] = book.id
-    db.session.commit()
+    try:
+        db.session.commit()
     
-    return jsonify({
-        "a_message": "Details updated successfully",
-        "updated_fields": updated_details
-    }), 200
+        return jsonify({
+            "a_message": "Details updated successfully",
+            "updated_fields": updated_details
+        }), 200
+    except Exception as e:
+        db.session.rollback()  # Rollback session on error
+        return jsonify({'error': 'An unexpected error occurred', 'message': str(e)}), 500
 
 @books_bp.route('/books/<int:book_id>', methods=['DELETE'])
 def delete_book(book_id):
     """
     Summary:
-        Delete a book from the database by its ID and return a confirmation message if successful otherwise returns an error
-            Description:
-        This endpoint deletes a book from the database by its ID.
-        If the book is not found, it returns a 404 error with a message indicating that the book was not found.
-        If the book is successfully deleted, it returns a 200 status code with a confirmation message.
-        If there is an error deleting the book, it returns a 500 error with a generic error message.
+        Deletes a book from the database by its ID and returns a confirmation message if successful.
+
+    Description:
+        This endpoint deletes a book identified by the given ID from the database. 
+        If the book with the specified ID is not found, it returns a 404 error with a message indicating that the book was not found.
+        If the deletion is successful, it returns a 200 status code with a confirmation message including the book's ID, title, and author.
+        In case of any error during the deletion process, it returns a 500 error with a generic error message. 
     
     Args:
         book_id (int): The ID of the book to delete.
 
+    HTTP response codes:
+        200 OK
+        404 Not Found
+        500 Internal Server Error
+
     Returns:
         JSON: A confirmation message if the book is deleted successfully otherwise error message.
     """
-
+    id = book_id
     book = Book.query.get(book_id)
     if not book:
         return jsonify({'error': 'Book not found'}), 404
     
-    db.session.delete(book)
-    db.session.commit()
+    title = book.title
+    author = book.author
     
-    return jsonify({
-        "a_message": "Book deleted successfully"
-    }), 200
+    try:
+        db.session.delete(book)
+        db.session.commit()
+    
+        return jsonify({
+            "book_id": id,
+            "title": title,
+            "author": author,
+            "a_message": "Book deleted successfully"
+        }), 200
+    except Exception as e:
+        db.session.rollback()  # Rollback session on error
+        return jsonify({'error': 'An unexpected error occurred', 'message': str(e)}), 500
 
 @books_bp.route('/books/<int:book_id>/availability', methods=['GET'])
 def check_availability(book_id):
     """
     Summary:
-        Check the availability of a book by its ID and return its availability status in JSON format if successful otherwise returns an error
-            Description:
-        This endpoint retrieves the availability status of a book from the database by its ID.
-        If the book is not found, it returns a 404 error with a message indicating that the book was not found.
-        If the book is successfully retrieved, it returns a 200 status code with the availability status in JSON format.
-        If there is an error retrieving the book, it returns a 500 error with a generic error message.
+        Checks the availability status of a book by its ID and returns the status in JSON format if successful.
+
+    Description:
+        This endpoint retrieves the availability status of a book identified by the given ID from the database.
+        If the book with the specified ID is not found, it returns a 404 error with a message indicating that the book was not found.
+        If the book is found, it returns a 200 status code with the availability status, including details such as ID, title, author, year, and ISBN, in JSON format.
+        In case of any error retrieving the book, it returns a 500 error with a generic error message.
 
     Args:
         book_id (int): The ID of the book to check availability.
+
+    HTTP response codes:
+        200 OK
+        404 Not Found
 
     Returns:
         JSON: The availability status of the book in JSON format if it exists otherwise error message.
@@ -406,13 +490,31 @@ def check_availability(book_id):
 def all_availability():
     """
     Summary:
-        Retrieve all books' availability status in JSON format and return them if successful otherwise returns an error
-            Description:
-        This endpoint retrieves all books' availability status or specific book according to the parameter provided from the database.
-        If there are no books, it returns an empty JSON object.
-        If the books are successfully retrieved, it returns a 200 status code with the availability status in JSON format.
+       Retrieve the availability status of all books or filter by specific criteria and return it in JSON format.
 
-        Returns:
+    Description:
+        This endpoint retrieves the availability status of all books from the database or filters books based on provided parameters.
+        If the request includes filters and no books match the criteria, it returns a 404 error with a message indicating no books were found.
+        If no filters are provided and no books are found, it returns a 200 status code with a message indicating no books were found.
+        If books are found, it returns a 200 status code with a JSON object containing the availability status of the books, along with pagination information. 
+
+    Optional Query Parameters:
+        - page: The page number to return (default is 1).
+        - per_page: The number of books per page (default is 10).
+        - title: Filter books by title.
+        - author: Filter books by author.
+        - year: Filter books by publication year.
+        - isbn: Filter books by ISBN.
+        - available: Filter books by availability (true/false).
+        - language: Filter books by language.
+        - category: Filter books by category.
+        - publisher: Filter books by publisher.
+        
+    HTTP response codes:
+        400 Bad Request
+        200 OK
+
+    Returns:
         JSON: A JSON object containing all books' availability status if successful otherwise error message.
     """
     page = request.args.get('page', 1, type=int)
@@ -470,7 +572,7 @@ def all_availability():
     books = query.paginate(page=page, per_page=per_page, error_out=False)
 
     if (title or author or year or isbn or available or language or category or publisher) and not books.items:
-        return jsonify({'error': 'No books found matching the given criteria'}), 404
+        return jsonify({'message': 'No books found matching the given criteria'}), 200
     
     if not (title or author or year or isbn or available or language or category or publisher):
         if not books.items:
@@ -497,3 +599,27 @@ def all_availability():
     }
 
     return jsonify(response), 200
+
+@books_bp.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def catch_all(path):
+    """
+    Summary:
+        Handle all unmatched routes and return a 404 error message.
+
+    Description:
+        This endpoint acts as a catch-all handler for any requests that do not match defined routes within the `books_bp` blueprint.
+        It will respond to any HTTP methods (GET, POST, PUT, DELETE) for any path that is not explicitly defined in the blueprint.
+        If a request is made to a URL that does not exist, it returns a 404 error with a message indicating that the requested URL was not found on the server.
+
+    Args:
+        path (str): The unmatched path part of the URL that was requested.
+
+    HTTP response codes:
+        404 NOT FOUND: The requested URL
+
+    Returns:
+        JSON: A JSON object containing an error message with the following structure:
+    """
+    return jsonify({
+        "error": "The requested URL was not found on the server. Please check your spelling and try again."
+    }), 404
