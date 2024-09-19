@@ -1,6 +1,9 @@
 from flask import Blueprint,jsonify, request
 from models import *
 from werkzeug.exceptions import BadRequest
+import validators
+import re
+from werkzeug.exceptions import NotFound
 
 books_bp = Blueprint('books', __name__)
 
@@ -11,7 +14,9 @@ def get_books():
          Retrieves a list of books from the database, with optional filtering and pagination. If no specific parameters are provided, returns all books. If filtering parameters are provided, returns books that match those criteria.
 
     Description:
-        This endpoint fetches all books or a specific book based on the parameters provided. It returns a paginated list of books in JSON format. If no books are found or if there is an error in the provided parameters, an appropriate error message is returned.    
+        This endpoint fetches all books or a specific book based on the parameters provided.
+        It returns a paginated list of books in JSON format. If no books are found 
+        or if there is an error in the provided parameters, an appropriate error message is returned. 
     
     Optional Query Parameters:
         page: The page number of the books to be returned
@@ -33,11 +38,12 @@ def get_books():
        If parameters are invalid
     
     Returns:
-        JSON: A JSON representation of the book or books in the database or a specific book in JSON format if successful otherwise returns an error
+        JSON: A JSON representation of the book or books in the database 
+        or a specific book in JSON format if successful otherwise returns an error
     """
 
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
+    page = request.args.get('page', 1)
+    per_page = request.args.get('per_page', 10)
     
     title = request.args.get('title', None)
     author = request.args.get('author', None)
@@ -53,8 +59,8 @@ def get_books():
         per_page = int(per_page)
         if page < 1 or per_page < 1:
             return jsonify({'error': 'Page and per_page parameters must be positive integers'}), 400
-    except ValueError:
-        return jsonify({'error': 'Page and per_page parameters must be integers'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Page and per_page parameters must be integers {e}'}), 400
 
     query = Book.query
 
@@ -67,11 +73,24 @@ def get_books():
     if year:
         try:
             query = query.filter(Book.year == int(year))
-        except ValueError:
-            return jsonify({'error': 'Year must be an integer'}), 400
+        except Exception as e:
+            return jsonify({'error': f'Year must be an integer {e}'}), 400
 
     if isbn:
-        query = query.filter(Book.isbn == isbn)
+        try:
+            if not isinstance(isbn, str):
+                raise TypeError('ISBN must be a string')
+            isbn = isbn.strip()
+            isbn = isbn.replace('-','')
+            isbn13_pattern = r'^97[89][0-9]{10}$'
+            isbn10_pattern = r'^[0-9]{9}[0-9Xx]$'
+            if not (re.match(isbn10_pattern, isbn) or re.match(isbn13_pattern, isbn)):
+                raise ValueError('Invalid ISBN Format')
+            if len(isbn) != 10 and len(isbn) != 13:
+                raise ValueError('Invalid ISBN Length')
+            query = query.filter(Book.isbn == isbn)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
 
     if available:
         if available.lower() in ['true', 'false']:
@@ -97,7 +116,7 @@ def get_books():
         if not books.items:
             return jsonify({'message': 'No books found'}), 200
         
-    total = query.count()
+    total = books.total
     data = [book.book_serialize() for book in books.items]
     return jsonify({'total_result': total, 'page': page, 'per_page': per_page, 'books': data, 'total_pages': books.pages}), 200
 
@@ -109,7 +128,9 @@ def get_book(book_id):
        Retrieves a specific book by its ID from the database and returns its details in JSON format.
 
      Description:
-        This endpoint fetches a book from the database using the provided book ID. If the book exists, it returns the book's details in JSON format with a 200 status code. If the book is not found, it returns a 404 error with an appropriate message.
+        This endpoint fetches a book from the database using the provided book ID.
+        If the book exists, it returns the book's details in JSON format with a 200 status code.
+        If the book is not found, it returns a 404 error with an appropriate message.
 
     Args:
         book_id (int): The ID of the book to retrieve.
@@ -124,10 +145,13 @@ def get_book(book_id):
     Returns:
         JSON: The book's details in JSON format if it exists otherwise error message.
     """
-    book = Book.query.get(book_id)
-    if not book:
-        return jsonify({'error': 'Book not found'}), 404
-    return jsonify(book.book_serialize()), 200
+    try:
+        book = Book.query.get(book_id)
+        if not book:
+            raise NotFound('Book not found')
+        return jsonify(book.book_serialize()), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @books_bp.route('/books', methods=['POST'])
 def add_book():
@@ -136,7 +160,9 @@ def add_book():
         Adds a new book to the database and returns the book's details in JSON format if successful. 
 
     Description:
-        This endpoint allows the addition of a new book to the database. It expects a JSON request body containing the book's details, including title, author, year, ISBN, available copies, total copies, publisher, language, and category. Optionally, a cover image URL can also be provided. 
+        This endpoint allows the addition of a new book to the database.
+        It expects a JSON request body containing the book's details, 
+        including title, author, year, ISBN, available copies, total copies, publisher, language, and category. Optionally, a cover image URL can also be provided. 
 
         - If any required fields are missing or the data is invalid, it returns a 400 error with a specific message indicating the issue.
         - If the book already exists in the database (based on ISBN), it returns a 409 error indicating the conflict.
@@ -194,20 +220,108 @@ def add_book():
     cover_image_url = data.get('cover_image_url', None)
     
     try:
+        if type(title) != str or not title:
+            raise TypeError('error : Title must be a string and not empty')
+        
+        if type(author) != str or not author:
+            raise TypeError('error : Author must be a string and not empty')
+        
+        if author.isdigit():
+            raise ValueError('error : author must not be numeric string')
+        
+        title = title.strip() 
+        author = author.strip()
+
+        pattern = r"^[A-Za-z][A-Za-z '-\.,]{2,70}$"
+        if not re.match(pattern, author):
+            raise ValueError('author should only contain alphabetical characters, hyphens, comma and apostrophe and be 2 characters long')
+        if len(author) < 2 or len(author) > 100:
+            raise ValueError('author must be 2 characters long and not over 100 characters')
+
+        if not year:
+            raise ValueError('error : year must be not be empty')
+        if type(year) == str:
+            year = year.strip()
+            if not year.isdigit():
+                raise ValueError('year should be a numeric string')
         year = int(year)
+        if len(str(year)) != 4 or year < 0 or year > datetime.utcnow().year or year < 1800:
+            raise ValueError('error : Invalid year, year must not be future date or negative number or not upto 4digits')
+        
+        if not available_copies:
+            raise ValueError('error : Available copies must not be empty')
+        if type(available_copies) == str:
+            available_copies = available_copies.strip()
+            if not available_copies.isdigit():
+                raise ValueError('available_copies can only be a numeric string')
         available_copies = int(available_copies)
+        if available_copies <= 0:
+            raise ValueError('error : Available copies must be a non-negative integer and greater than 0')
+        
+        if not total_copies:
+            raise ValueError('error : Total copies must not be empty')
+        if type(total_copies) == str:
+            total_copies = total_copies.strip()
+            if not total_copies.isdigit():
+                raise ValueError('total_copy can only be a numeric string')
         total_copies = int(total_copies)
-    except ValueError:
-        return jsonify({'error': 'Year, available_copies, and total_copies must be integers'}), 400
+        if total_copies <= 0:
+            raise ValueError('error: Total copies must be a non-negative integer and greater than 0')
     
-    if available:
-        if available.lower() in ['true', 'false']:
-            available = available.lower() == 'true'
-        else:
-            return jsonify({'error': 'Available must be true or false'}), 400
+    except ValueError as e:
+        return jsonify({'error': f'{e}'}), 400
+    except TypeError as e:
+        return jsonify({'error': f'{e}'}), 400
+    except Exception as e:
+        return jsonify({'error': f'{e}'}), 400
     
-    if total_copies < available_copies:
-        return jsonify({'error': 'Total copies must be greater than or equal to available copies'}), 400
+    try:
+        if not language or not category or not publisher:
+            raise ValueError('Language, Category, Publisher cant be empty')
+        if not isinstance(category, str) or not isinstance(publisher, str) or not isinstance(language, str):
+            raise TypeError('Language, Category, Publisher must be strings')
+        language = language.strip()
+        category = category.strip()
+        publisher = publisher.strip()
+
+        if available:
+            if type(available) != str:
+                raise TypeError('Available must be a boolean value (true or false) enclosed in a string')
+            available = available.strip()
+            if available.lower() in ['true', 'false']:
+                available = available.lower() == 'true'
+            else:
+                raise ValueError('Available must be true or false')
+        
+        if cover_image_url:
+            if type(cover_image_url) != str:
+                raise TypeError('cover image URL must be a valid url enclosed in a string')
+            cover_image_url = cover_image_url.strip()
+            if not validators.url(cover_image_url):
+                raise ValueError('Invalid cover image URL')
+        
+        if not isbn:
+            raise ValueError('ISBN must not be empty')    
+        if isbn:
+            if not isinstance(isbn, str):
+                raise TypeError('ISBN must be a string')
+            isbn = isbn.strip()
+            isbn = isbn.replace('-','')
+            isbn13_pattern = r'^97[89][0-9]{10}$'
+            isbn10_pattern = r'^[0-9]{9}[0-9Xx]$'
+            if not (re.match(isbn10_pattern, isbn) or re.match(isbn13_pattern, isbn)):
+                raise ValueError('Invalid ISBN Format')
+            if len(isbn) not in [10, 13]:
+                raise ValueError('Invalid ISBN Length')
+    
+        if total_copies < available_copies:
+            raise ValueError('Total copies must be greater than or equal to available copies')
+    except ValueError as e:
+        return jsonify({'error': f'{e}'}), 400
+    except TypeError as e:
+        return jsonify({'error': f'{e}'}), 400
+    except Exception as e:
+        return jsonify({'error': f'{e}'}), 400
     
     if Book.query.filter_by(isbn=data['isbn']).first():
         return jsonify({'error': 'Book already exists'}), 409
@@ -235,7 +349,9 @@ def update_book(book_id):
        Updates an existing book in the database and returns the updated book details in JSON format if successful.
 
     Description:
-        This endpoint allows updating the details of an existing book in the database. It expects a JSON request body containing the details to be updated, including title, author, year, ISBN, available status, available copies, total copies, language, category, and publisher. Optionally, a cover image URL can also be updated.
+        This endpoint allows updating the details of an existing book in the database.
+        It expects a JSON request body containing the details to be updated, including title, author, year, ISBN, available status, available copies, total copies, language, category, and publisher.
+        Optionally, a cover image URL can also be updated.
 
         - If any of the provided fields are the same as the current values, it returns a 409 error indicating no changes were made for those fields.
         - If the book is not found by the provided ID, it returns a 404 error.
@@ -285,113 +401,179 @@ def update_book(book_id):
     
     updated_details = {}
     
-    if data.get('title'):
-        if data.get('title') != book.title:
-            book.title = data['title']
-            updated_details['title'] = book.title
-        else:
-            return jsonify({'error': 'New Book title is the same as the current book title'}), 409
-
-    if data.get('author'):
-        if data.get('author') != book.author:
-            book.author = data['author']
-            updated_details['author'] = book.author
-        else:
-            return jsonify({'error': 'New Book author is the same as the current book author'}), 409
-
-    if data.get('year'):
-        try:
-            year = int(data['year'])
-            if year != book.year:
-                book.year = year
-                updated_details['year'] = year
+    try:
+        if data.get('title'):
+            if type(data.get('title')) != str:
+                raise TypeError('Title must be a string')
+            title = data.get('title').strip()
+            if title != book.title:
+                book.title = title
+                updated_details['title'] = book.title
             else:
-                return jsonify({'error': 'New Book year is the same as the current book year'}), 409
-        except ValueError:
-            return jsonify({'error': 'Year must be an integer'}), 400
+                return jsonify({'error': 'New Book title is the same as the current book title'}), 409
 
-    if data.get('isbn'):
-        if data.get('isbn') != book.isbn:
-            book.isbn = data['isbn']
-            updated_details['isbn'] = book.isbn
-        else:
-            return jsonify({'error': 'New Book ISBN is the same as the current book ISBN'}), 409
-
-    if data.get('available'):
-        availability = data['available']
-        
-        if availability != book.available:
-            if availability.lower() in ["true", "false"]:
-                book.available = availability.lower() == 'true'
-                updated_details['available'] = availability.lower() == 'true'
+        if data.get('author'):
+            if type(data.get('author')) != str:
+                raise TypeError('Author must be a string')
+            author = data.get('author')
+            if author.isdigit():
+                raise ValueError('Author cannot be a number')
+            author = author.strip()
+            pattern = r"^[A-Za-z][A-Za-z '\.-,]{2,70}$"
+            if not re.match(pattern, author):
+                raise ValueError('author should only contain alphabetical characters, hyphens, comma and apostrophe and be 2 characters long')
+            if len(author) < 2 or len(author) > 100:
+                raise ValueError('author must be 2 characters long and not over 100 characters')
+            if author != book.author:
+                book.author = author
+                updated_details['author'] = book.author
             else:
-                return jsonify({'error': 'Available must be true or false'}), 400
-        else:
-            return jsonify({'error': 'New Book availability is the same as the current book availability'}), 409
+                return jsonify({'error': 'New Book author is the same as the current book author'}), 409
 
-    if data.get('available_copies'):
-        try:
-            available_copy = int(data['available_copies'])
-            if available_copy != book.available_copies:
-                book.available_copies = available_copy
-                updated_details['available_copies'] = available_copy
+        if data.get('year'):
+            try:
+                if type(data.get('year')) == str:
+                    year = data.get('year').strip()
+                    if not year.isdigit():
+                        raise ValueError('Year must be an integer')
+                    year = int(year)
+                else:
+                    year = data.get('year')
+                if len(str(year)) != 4 or year < 0 or year > datetime.utcnow().year or year < 1800:
+                    raise ValueError('Invalid year, year must not be future date or negative number or not upto 4digits')
+                if year != book.year:
+                    book.year = year
+                    updated_details['year'] = book.year
+                else:
+                    return jsonify({'error': 'New Book year is the same as the current book year'}), 409
+            except Exception as e:
+                return jsonify({'error': f'Year must be an integer {e}'}), 400
+
+        if data.get('isbn'):
+            if not isinstance(data.get('isbn'), str):
+                raise TypeError('ISBN must be a string')
+            isbn = data.get('isbn').strip()
+            isbn = isbn.replace('-','')
+            isbn13_pattern = r'^97[89][0-9]{10}$'
+            isbn10_pattern = r'^[0-9]{9}[0-9Xx]$'
+            if not (re.match(isbn10_pattern, isbn) or re.match(isbn13_pattern, isbn)):
+                raise ValueError('Invalid ISBN Format')
+            if len(isbn) != 10 and len(isbn) != 13:
+                raise ValueError('Invalid ISBN Length')
+            if isbn != book.isbn:
+                book.isbn = isbn
+                updated_details['isbn'] = book.isbn
             else:
-                return jsonify({'error': 'New Book available copies is the same as the current book available copies'}), 409
+                return jsonify({'error': 'New Book ISBN is the same as the current book ISBN'}), 409
 
-        except ValueError:
-            return jsonify({'error': 'Available copies must be an integer'}), 400
-
-    if data.get('total_copies'):
-        try:
-            total_copy = int(data['total_copies'])
-
-            if total_copy != book.total_copies:
-                book.total_copies = total_copy
-                updated_details['total_copies'] = total_copy
+        if data.get('available'):
+            if type(data.get('available')) != str:
+                raise ValueError('Available must be a boolean value (true or false) enclosed in a string')
+            availability = data.get('available').strip()
+            if availability != book.available:
+                if availability.lower() in ["true", "false"]:
+                    book.available = availability.lower() == 'true'
+                    updated_details['available'] = book.available
+                else:
+                    return jsonify({'error': 'Available must be true or false'}), 400
             else:
-                return jsonify({'error': 'New Book total copies is the same as the current book total copies'}), 409
+                return jsonify({'error': 'New Book availability is the same as the current book availability'}), 409
+
+        if data.get('available_copies'):
+            try:
+                if type(data.get('available_copies')) == str:
+                    available_copy = data.get('available_copies').strip()
+                    if not available_copy.isdigit():
+                        raise ValueError('error : Available copies must be a non-negative integer')
+                    available_copy = int(available_copy)
+                else:
+                    available_copy = int(data.get('available_copies'))
+                if available_copy < 0:
+                    raise ValueError('error : Available copies must be a non-negative integer')
+                if available_copy != book.available_copies:
+                    book.available_copies = available_copy
+                    updated_details['available_copies'] = book.available_copies
+                else:
+                    return jsonify({'error': 'New Book available copies is the same as the current book available copies'}), 409
+
+            except Exception as e:
+                return jsonify({'error': f'Available copies must be an integer {e}'}), 400
+
+        if data.get('total_copies'):
+            try:
+                if type(data.get('total_copies')) == str:
+                    total_copy = data.get('total_copies').strip()
+                    if not total_copy.isdigit():
+                        raise ValueError('error: Total copies must be a non-negative integer')
+                    total_copy = int(total_copy)
+                else:
+                    total_copy = data.get('total_copies')
+                if total_copy < 0:
+                    raise ValueError('error: Total copies must be a non-negative integer')
+                if total_copy != book.total_copies:
+                    book.total_copies = total_copy
+                    updated_details['total_copies'] = book.total_copies
+                else:
+                    return jsonify({'error': 'New Book total copies is the same as the current book total copies'}), 409
                                                  
-        except ValueError:
-            return jsonify({'error': 'Total copies must be an integer'}), 400
+            except Exception as e:
+                return jsonify({'error': f'{e}'}), 400
 
-    if data.get('language'):
-        if data.get('language') != book.language:
-            book.language = data['language']
-            updated_details['language'] = book.language
-        else:
-            return jsonify({'error': 'New Book language is the same as the current book language'}), 409
+        if data.get('language'):
+            if not isinstance(data.get('language'), str):
+                raise ValueError('language must be a string')
+            language = data.get('language').strip()
+            if language != book.language:
+                book.language = language
+                updated_details['language'] = book.language
+            else:
+                return jsonify({'error': 'New Book language is the same as the current book language'}), 409
 
-    if data.get('category'):
-        if data.get('category') != book.category:
-            book.category = data['category']
-            updated_details['category'] = book.category
-        else:
-            return jsonify({'error': 'New Book category is the same as the current book category'}), 409
+        if data.get('category'):
+            if not isinstance(data.get('category'), str):
+                raise ValueError('category must be a string')
+            category = data.get('category').strip()
+            if category != book.category:
+                book.category = category
+                updated_details['category'] = book.category
+            else:
+                return jsonify({'error': 'New Book category is the same as the current book category'}), 409
 
-    if data.get('publisher'):
-        if data.get('publisher') != book.publisher:
-            book.publisher = data['publisher']
-            updated_details['publisher'] = book.publisher
-        else:
-            return jsonify({'error': 'New Book publisher is the same as the current book publisher'}), 409
+        if data.get('publisher'):
+            if not isinstance(data.get('publisher'), str):
+                raise ValueError('publisher must be a string')
+            publisher = data.get('publisher').strip()
+            if publisher != book.publisher:
+                book.publisher = publisher
+                updated_details['publisher'] = book.publisher
+            else:
+                return jsonify({'error': 'New Book publisher is the same as the current book publisher'}), 409
     
-    if data.get('cover_image_url'):
-        if data.get('cover_image_url') != book.cover_image_url:
-            book.cover_image_url = data['cover_image_url']
-            updated_details['cover_image_url'] = book.cover_image_url
-        else:
-            return jsonify({'error': 'cover_image_url is the same as current cover_image_url'}), 409
+        if data.get('cover_image_url'):
+            if type(data.get('cover_image_url')) != str:
+                raise ValueError('cover_image_url must be a valid URL enclosed in a string')
+            cover_image_url = data.get('cover_image_url').strip()
+            if not validators.url(cover_image_url):
+                raise ValueError('cover_image_url must be a valid URL')
+            if cover_image_url != book.cover_image_url:
+                book.cover_image_url = cover_image_url
+                updated_details['cover_image_url'] = book.cover_image_url
+            else:
+                return jsonify({'error': 'cover_image_url is the same as current cover_image_url'}), 409
 
-    if updated_details is None:
-        return jsonify({'mesaage': 'No changes made'}), 200
+        if updated_details is None or not updated_details:
+            return jsonify({'mesaage': 'No changes made'}), 200
     
-    if 'available_copies' in updated_details or 'total_copies' in updated_details:
-        if book.total_copies < book.available_copies:
-            return jsonify({'error': 'Total copies must be greater than or equal to available copies'}), 400
-        else:
-            book.update_availability()
+        if 'available_copies' in updated_details or 'total_copies' in updated_details:
+            if book.total_copies < book.available_copies:
+                return jsonify({'error': 'Total copies must be greater than or equal to available copies'}), 400
+            else:
+                book.update_availability()
     
-    updated_details['book_id'] = book.id
+        updated_details['book_id'] = book.id
+    except Exception as e:
+        return jsonify({"error": f'{e}'})
+    
     try:
         db.session.commit()
     
@@ -505,7 +687,7 @@ def all_availability():
         - author: Filter books by author.
         - year: Filter books by publication year.
         - isbn: Filter books by ISBN.
-        - available: Filter books by availability (true/false).
+        - available: Filter books by availability status (true or false). 
         - language: Filter books by language.
         - category: Filter books by category.
         - publisher: Filter books by publisher.
@@ -517,8 +699,8 @@ def all_availability():
     Returns:
         JSON: A JSON object containing all books' availability status if successful otherwise error message.
     """
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
+    page = request.args.get('page', 1)
+    per_page = request.args.get('per_page', 10)
     
     title = request.args.get('title', None)
     author = request.args.get('author', None)
@@ -534,10 +716,10 @@ def all_availability():
         per_page = int(per_page)
         if page < 1 or per_page < 1:
             return jsonify({'error': 'Page and per_page parameters must be positive integers'}), 400
-    except ValueError:
-        return jsonify({'error': 'Page and per_page parameters must be integers'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Page and per_page parameters must be integers {e}'}), 400
 
-    query = Book.query
+    query = Book.query.filter(Book.available == True)
 
     if title:
         query = query.filter(Book.title.ilike(f'%{title}%'))
@@ -547,9 +729,10 @@ def all_availability():
 
     if year:
         try:
-            query = query.filter(Book.year == int(year))
-        except ValueError:
-            return jsonify({'error': 'Year must be an integer'}), 400
+            year = int(year)
+            query = query.filter(Book.year == year)
+        except Exception as e:
+            return jsonify({'error': f'Year must be an integer {e}'}), 400
 
     if isbn:
         query = query.filter(Book.isbn == isbn)
@@ -578,7 +761,7 @@ def all_availability():
         if not books.items:
             return jsonify({'message': 'No books found'}), 200
         
-    total = query.count()
+    total = books.total
     data = [
         {
             'id': book.id,
@@ -591,7 +774,7 @@ def all_availability():
     ]
     
     response = {
-        'total_items': books.total,
+        'total_items': total,
         'page': page,
         'per_page': per_page,
         'total_pages': books.pages,
