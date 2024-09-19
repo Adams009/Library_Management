@@ -125,9 +125,9 @@ class User(db.Model):
         dob = date_of_birth.strip()
         if not re.match(date_check, dob) and not re.match(date_check2, dob):
             raise ValueError("Date must be in the format YYYY-MM-DD or YYYY/MM/DD.")
+        dob = parser.parse(dob)
         if not (dob.day and dob.month and dob.year):
                 raise ValueError("Date must include day, month, and year.")
-        dob = parser.parse(dob)
         if dob.date() > datetime.now().date():
             raise ValueError('Date of birth cannot be in the future')
         self.date_of_birth = dob.date()
