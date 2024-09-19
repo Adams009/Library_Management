@@ -5,3 +5,4 @@ Flask-SQLAlchemy
 python-dateutil
 email-validator
 phonenumbers
+validators
