@@ -303,7 +303,7 @@ Error Responses:
 
 - **Example Request:**
   ```bash
-  curl -X GET "http://yourapiurl/unknown_route"
+  curl -X GET "http://api/books/unknown_route"
 
     Error Response:
 
@@ -734,7 +734,7 @@ Error Responses:
 
 - **Example Request:**
   ```bash
-  curl -X GET "http://example.com/api/nonexistent/path"
+  curl -X GET "http://api/books/nonexistent/path"
   ```
 
                           ROUTES FOR BORROW
@@ -838,7 +838,7 @@ Example Response (Error):
   ```
 ### 2. Retrieve Borrowed Books
 
-- **Route:** `/books/borrow`
+- **Route:** `/borrow`
 - **Method:** `GET`
 - **Description:** Retrieves a list of all borrowed books or a specific borrowed book based on provided parameters and returns it in JSON format.
 
@@ -909,12 +909,12 @@ Example Response (Error):
 
 - **Example Request:**
   ```bash
-  curl -X GET "http://example.com/books/borrow?page=2&per_page=5&author=Jane%20Doe"
+  curl -X GET "http://example.com/borrow?page=2&per_page=5&author=Jane%20Doe"
   ```
 
 ### 3. Retrieve Specific Borrowed Book
 
-- **Route:** `/books/borrow/<int:book_id>`
+- **Route:** `</borrow/<int:book_id>`
 - **Method:** `GET`
 - **Description:** Retrieve information about a specific borrowed book based on the provided book ID. This endpoint can also filter the results based on additional query parameters such as user ID, borrow date, due date, and return date. The response is returned in JSON format and includes details about the borrowed book.
 
@@ -982,12 +982,12 @@ Example Response (Error):
 
 - **Example Request:**
   ```bash
-  curl -X GET "http://example.com/books/borrow/123?page=1&per_page=10&user_id=456"
+  curl -X GET "http://example.com/borrow/123?page=1&per_page=10&user_id=456"
   ```
 
 ### 4. Retrieve Unreturned Borrowed Books
 
-- **Route:** `/books/borrow/unreturned/`
+- **Route:** `/unreturned`
 - **Method:** `GET`
 - **Description:** Retrieve all borrowed books that have not been returned yet. This endpoint supports filtering based on various optional query parameters such as title, author, category, publisher, language, user ID, book ID, borrow date, and due date. The results are returned in a paginated JSON format.
 
@@ -1057,7 +1057,7 @@ Example Response (Error):
 
 - **Example Request:**
   ```bash
-  curl -X GET "http://example.com/books/borrow/unreturned/?page=1&per_page=10&author=Jane%20Doe"
+  curl -X GET "http://example.com/unreturned?page=1&per_page=10&author=Jane%20Doe"
   ```
 
 ### 5. Catch-All Route
@@ -1084,10 +1084,521 @@ Example Response (Error):
 
 - **Example Request:**
   ```bash
-  curl -X GET "http://example.com/nonexistent/path"
+  curl -X GET "http://api/borrow/nonexistent/path"
+  ```
+
+                              RETURN ROUTES
+
+### 1. Return a Borrowed Book
+
+- **Route:** `/books/<int:book_id>/return`
+- **Method:** `POST`
+- **Description:** Processes the return of a borrowed book for a specific user. It updates the borrow record and includes the return details such as user ID, username, email, and damage status. The endpoint performs several validations and checks to ensure the return is processed correctly.
+
+- **Request Body (JSON):**
+    - `user_id` (int): The ID of the user returning the book.
+    - `username` (string): The username of the user returning the book.
+    - `email` (string): The email address of the user returning the book.
+    - `damage` (string): The damage status of the book, which should be "true" or "false".
+
+- **Args:**
+    - `book_id` (int): The ID of the book being returned.
+
+- **HTTP Response Codes:**
+    - **200 OK:** If the book is successfully returned and the borrow record is updated.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "a_message": "Book returned successfully",
+            "id": 1,
+            "user_id": 456,
+            "book_id": 123,
+            "borrow_date": "2024-01-15",
+            "due_date": "2024-02-15",
+            "returned_date": "2024-01-20",
+            "book_title": "Example Book Title",
+            "damage_status": "false",
+            "damage_fine": 0,
+            "fine_amount": 5,
+            "total_fine": 5
+          }
+          ```
+
+    - **400 Bad Request:** If the request body is missing required fields or contains invalid data.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "Invalid user_id: user_id must be an integer and greater than 0"
+          }
+          ```
+
+    - **404 Not Found:** If the user or borrow record cannot be found.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "User not found: id, username, and/or email do not match"
+          }
+          ```
+
+    - **409 Conflict:** If the book has already been returned or if the record was not found.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "Book already returned."
+          }
+          ```
+
+    - **500 Internal Server Error:** For any unexpected errors during the return process.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "An unexpected error occurred",
+            "message": "Detailed error message"
+          }
+          ```
+
+- **Example Request:**
+  ```bash
+  curl -X POST "http://example.com/books/123/return" \
+    -H "Content-Type: application/json" \
+    -d '{
+          "user_id": 456,
+          "username": "johndoe",
+          "email": "johndoe@example.com",
+          "damage": "false"
+        }'
+  ```
+### 2. Retrieve All Returned Books
+
+- **Route:** `/return`
+- **Method:** `GET`
+- **Description:** Retrieves a paginated list of all returned books. This endpoint supports various optional filters to narrow down the results based on book and user details, as well as dates. It also handles pagination through query parameters.
+
+- **Query Parameters:**
+    - `page` (int): The page number for pagination. Defaults to 1.
+    - `per_page` (int): The number of items per page. Defaults to 10.
+    - `title` (string): Filter by book title (partial match).
+    - `author` (string): Filter by book author (partial match).
+    - `category` (string): Filter by book category (partial match).
+    - `publisher` (string): Filter by book publisher (partial match).
+    - `language` (string): Filter by book language (partial match).
+    - `user_id` (int): Filter by the ID of the user who borrowed the book.
+    - `book_id` (int): Filter by the ID of the book.
+    - `borrow_date` (string): Filter by the borrow date (format: YYYY-MM-DD).
+    - `due_date` (string): Filter by the due date (format: YYYY-MM-DD).
+    - `return_date` (string): Filter by the return date (format: YYYY-MM-DD).
+
+- **HTTP Response Codes:**
+    - **200 OK:** If the request is successful and returned books are retrieved.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "returned_books": [
+              {
+                "id": 1,
+                "user_id": 456,
+                "book_id": 123,
+                "borrow_date": "2024-01-15",
+                "due_date": "2024-02-15",
+                "returned_date": "2024-01-20",
+                "book_title": "Example Book Title",
+                "damage_status": "false",
+                "damage_fine": 0,
+                "fine_amount": 5,
+                "total_fine": 5
+              }
+              // More returned books here
+            ],
+            "total_result": 5,
+            "page": 1,
+            "per_page": 10,
+            "total_pages": 1
+          }
+          ```
+
+    - **400 Bad Request:** If the query parameters are invalid or incorrectly formatted.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "Invalid borrow_date: borrow_date must be in YYYY-MM-DD format"
+          }
+          ```
+
+    - **404 Not Found:** If no returned books matching the specified criteria are found.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "No Returned books found matching the specified criteria"
+          }
+          ```
+
+- **Example Request:**
+  ```bash
+  curl -X GET "http://example.com/return?page=1&per_page=10&author=Jane%20Doe"
+  ```
+### 3. Retrieve Specific Returned Book
+
+- **Route:** `/return/<int:book_id>`
+- **Method:** `GET`
+- **Description:** Retrieves a paginated list of all returned instances for a specific book identified by its `book_id`. This endpoint supports optional filtering based on user ID and date ranges. It also supports pagination through query parameters.
+
+- **Args:**
+    - `book_id` (int): The ID of the book whose returned instances are to be retrieved.
+
+- **Query Parameters:**
+    - `page` (int): The page number for pagination. Defaults to 1.
+    - `per_page` (int): The number of items per page. Defaults to 10.
+    - `user_id` (int): Filter by the ID of the user who borrowed the book.
+    - `borrow_date` (string): Filter by the borrow date (format: YYYY-MM-DD).
+    - `due_date` (string): Filter by the due date (format: YYYY-MM-DD).
+    - `return_date` (string): Filter by the return date (format: YYYY-MM-DD).
+
+- **HTTP Response Codes:**
+    - **200 OK:** If the request is successful and the returned book instances are retrieved.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "returned_books": [
+              {
+                "id": 1,
+                "user_id": 456,
+                "book_id": 123,
+                "borrow_date": "2024-01-15",
+                "due_date": "2024-02-15",
+                "returned_date": "2024-01-20",
+                "book_title": "Example Book Title",
+                "damage_status": "false",
+                "damage_fine": 0,
+                "fine_amount": 5,
+                "total_fine": 5
+              }
+              // More returned books here
+            ],
+            "total_result": 5,
+            "page": 1,
+            "per_page": 10,
+            "total_pages": 1
+          }
+          ```
+
+    - **400 Bad Request:** If the query parameters are invalid or incorrectly formatted.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "Invalid borrow_date: borrow_date must be in YYYY-MM-DD format"
+          }
+          ```
+
+    - **404 Not Found:** If no returned instances matching the specified criteria are found.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "No Returned books found matching the specified criteria"
+          }
+          ```
+
+- **Example Request:**
+  ```bash
+  curl -X GET "http://example.com/return/123?page=1&per_page=10&user_id=456"
+  ```
+### 4. Catch-All Route
+
+- **Route:** `/<path:path>`
+- **Method:** `GET`, `POST`, `PUT`, `DELETE`
+- **Description:** Handles all unmatched routes within the `borrow_bp` blueprint and returns a 404 error message. This endpoint serves as a fallback for any requests that do not match the explicitly defined routes within the blueprint. It is invoked for any HTTP method and any path that is not explicitly defined.
+
+- **Args:**
+  - `path` (string): The unmatched path part of the URL that was requested.
+
+- **HTTP Response Codes:**
+  - **404 Not Found:** Returned when the requested URL does not match any defined route in the blueprint.
+    - **Content-Type:** application/json
+    - **Response Body:**
+      ```json
+      {
+        "error": "The requested URL was not found on the server. Please check your spelling and try again."
+      }
+      ```
+
+- **Returns:**
+  - JSON: A JSON object containing an error message indicating that the requested URL was not found on the server. It suggests checking the spelling and trying again.
+
+- **Example Request:**
+  ```bash
+  curl -X GET "http://api/return/nonexistent/path"
   ```
 
   ```bash
+
+                    READ-LIST ROUTES
+
+### 1. Add a Book to a User's Reading List
+
+- **Route:** `/users/<int:user_id>/read`
+- **Method:** `POST`
+- **Description:** Allows a user to add a book to their reading list. The request must contain a JSON body with the book ID, username, and email. The endpoint performs validations to ensure that the user exists, the book is valid, and that the user has borrowed the book previously. It also checks that the book is not already in the reading list.
+
+- **Request Body (JSON):**
+    - `book_id` (int): The ID of the book to add to the reading list (required).
+    - `username` (string): The username of the user adding the book (required).
+    - `email` (string): The email address of the user adding the book (required).
+
+- **Args:**
+    - `user_id` (int): The ID of the user adding the book to the reading list.
+
+- **HTTP Response Codes:**
+    - **201 Created:** If the book is successfully added to the reading list.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "book_id": 123,
+            "user_id": 456,
+            "message": "Book added to reading list successfully."
+          }
+          ```
+
+    - **400 Bad Request:** If the request body is missing required fields or contains invalid data.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "book_id, username, email is required to add a book to reading list"
+          }
+          ```
+
+    - **404 Not Found:** If the user, book, or borrowed record cannot be found.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "user not found: id, username, and/or email do not match"
+          }
+          ```
+
+    - **409 Conflict:** If the book is already in the reading list or the user has not returned the borrowed book.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "message": "You must return the book before adding it to your reading list."
+          }
+          ```
+
+    - **500 Internal Server Error:** For any unexpected errors during the addition process.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "An unexpected error occurred",
+            "message": "Detailed error message"
+          }
+          ```
+
+- **Example Request:**
+  ```bash
+  curl -X POST "http://example.com/users/456/read" \
+    -H "Content-Type: application/json" \
+    -d '{
+          "book_id": 123,
+          "username": "johndoe",
+          "email": "johndoe@example.com"
+        }'
+  ```
+
+### 2. Retrieve a User's Reading List
+
+- **Route:** `/users/<int:user_id>/read`
+- **Method:** `GET`
+- **Description:** Fetches a paginated list of books from a user's reading list. The results can be filtered by various criteria such as title, author, category, publisher, language, and book ID. 
+
+- **Args:**
+    - `user_id` (int): The ID of the user whose reading list is being requested.
+
+- **Query Parameters:**
+    - `page` (int): The page number to retrieve (default is 1).
+    - `per_page` (int): The number of items to return per page (default is 10).
+    - `title` (string): Filter results to include books with titles matching this string (optional).
+    - `author` (string): Filter results to include books by authors matching this string (optional).
+    - `category` (string): Filter results to include books in this category (optional).
+    - `publisher` (string): Filter results to include books published by this publisher (optional).
+    - `language` (string): Filter results to include books in this language (optional).
+    - `book_id` (int): Filter results to include only the book with this ID (optional).
+
+- **HTTP Status Codes:**
+    - **200 OK:** If the request is successful and the reading list is retrieved.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "read_list": [
+                {
+                    "book_id": 123,
+                    "title": "Example Book Title",
+                    "author": "John Doe",
+                    "category": "Fiction"
+                }
+            ],
+            "total_result": 1,
+            "page": 1,
+            "per_page": 10,
+            "total_pages": 1
+          }
+          ```
+
+    - **400 Bad Request:** If pagination parameters are invalid.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "Page and per_page parameters must be positive integers"
+          }
+          ```
+
+    - **404 Not Found:** If no books are found matching the specified criteria.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "No Read books found matching the specified criteria"
+          }
+          ```
+
+- **Errors:**
+    - Invalid pagination parameters (must be positive integers).
+    - Invalid or missing filtering criteria (e.g., invalid book ID).
+    - No books found matching the specified criteria.
+
+- **Returns:**
+    - JSON: A JSON object containing:
+        - `read_list`: A list of books in the user's reading list matching the criteria.
+        - `total_result`: The total number of books found.
+        - `page`: The current page number.
+        - `per_page`: The number of results per page.
+        - `total_pages`: The total number of pages available.
+
+- **Example Request:**
+  ```bash
+  curl -X GET "http://example.com/users/456/read?page=1&per_page=10&title=Example"
+  
+  ```
+### 3. Remove a Book from a User's Reading List
+
+- **Route:** `/users/<int:user_id>/read/<int:book_id>`
+- **Method:** `DELETE`
+- **Description:** Allows a user to remove a specified book from their reading list by providing their username and email for verification. The endpoint checks if the user and book exist before performing the deletion.
+
+- **Args:**
+    - `user_id` (int): The ID of the user from whose reading list the book will be removed.
+    - `book_id` (int): The ID of the book to be removed from the reading list.
+
+- **Request Body (JSON):**
+    - `username` (string): The username of the user (required).
+    - `email` (string): The email address of the user (required).
+
+- **HTTP Status Codes:**
+    - **200 OK:** If the book is successfully removed from the reading list.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "message": "Book removed from reading list successfully"
+          }
+          ```
+
+    - **400 Bad Request:** If the request body is missing required fields or contains invalid data.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "username, email is required to delete a book from reading list"
+          }
+          ```
+
+    - **404 Not Found:** If the user or the book is not found in the reading list.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "Book not found in reading list"
+          }
+          ```
+
+    - **500 Internal Server Error:** For any unexpected errors during the deletion process.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "Error deleting book from reading list: Detailed error message"
+          }
+          ```
+
+- **Errors:**
+    - Invalid or missing data in the request body.
+    - User not found or credentials do not match.
+    - Book not found in the reading list.
+    - Database errors during deletion.
+
+- **Returns:**
+    - JSON: A JSON object indicating the success or failure of the deletion operation.
+
+- **Example Request:**
+  ```bash
+  curl -X DELETE "http://example.com/users/456/read/123" \
+    -H "Content-Type: application/json" \
+    -d '{
+          "username": "johndoe",
+          "email": "johndoe@example.com"
+        }'
+  ```
+### 4. Catch-All Route for Unmatched URLs
+
+- **Route:** `/<path:path>`
+- **Method:** `GET`, `POST`, `PUT`, `DELETE`
+- **Description:** This endpoint handles any requests that do not match the explicitly defined routes within the `read_list_bp` blueprint. It serves as a catch-all handler and returns a 404 error message.
+
+- **Args:**
+    - `path` (str): The unmatched path part of the URL that was requested.
+
+- **HTTP Response Codes:**
+    - **404 Not Found:** Returned when the requested URL does not match any defined route in the blueprint.
+        - **Content-Type:** `application/json`
+        - **Response Body:**
+          ```json
+          {
+            "error": "The requested URL was not found on the server. Please check your spelling and try again."
+          }
+          ```
+
+- **Returns:**
+    - JSON: A JSON object containing an error message.
+
+- **Example Request:**
+  ```bash
+  curl -X GET "http://example.com/nonexistent/path"
+
+  ```
+  ```bash
+    Example Response:
+
+    json
+
+    {
+  "error": "The requested URL was not found on the server. Please check your spelling and try again."
+  }
+  ```
+
   Notes
 
     Ensure to provide data in JSON format for POST and PUT requests.
